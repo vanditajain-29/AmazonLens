@@ -1,92 +1,52 @@
 import { Router } from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import nodemailer from "nodemailer";
-import crypto from "crypto";
+import User from "../models/User.js";
 
 const router = Router();
 
-// In-memory store (replace with MongoDB in production)
-const users = [];
-const resetTokens = new Map();
-
-const JWT_SECRET = process.env.JWT_SECRET || "dev_secret_change_in_prod";
-const signToken = (user) => jwt.sign({ id: user.id, email: user.email, name: user.name }, JWT_SECRET, { expiresIn: "7d" });
-
-const getTransporter = () =>
-  nodemailer.createTransport({
-    service: "gmail",
-    auth: { user: process.env.EMAIL_USER, pass: process.env.EMAIL_PASS }
-  });
+const makeToken = (user) =>
+  jwt.sign({ id: user._id, email: user.email }, process.env.JWT_SECRET, { expiresIn: "7d" });
 
 router.post("/signup", async (req, res) => {
   const { name, email, password } = req.body;
-  if (!name || !email || !password) return res.status(400).json({ message: "All fields required" });
-  if (users.find((u) => u.email === email)) return res.status(409).json({ message: "Email already registered" });
+  if (!name || !email || !password)
+    return res.status(400).json({ message: "Name, email and password are required." });
+  if (password.length < 6)
+    return res.status(400).json({ message: "Password must be at least 6 characters." });
 
-  const hashed = await bcrypt.hash(password, 10);
-  const user = { id: crypto.randomUUID(), name, email, password: hashed };
-  users.push(user);
+  try {
+    const exists = await User.findOne({ email: email.toLowerCase() });
+    if (exists) return res.status(409).json({ message: "An account with this email already exists." });
 
-  res.status(201).json({ token: signToken(user), user: { name: user.name, email: user.email } });
+    const hashed = await bcrypt.hash(password, 10);
+    const user = await User.create({ name, email, password: hashed });
+    const token = makeToken(user);
+    res.status(201).json({ token, user: { id: user._id, name: user.name, email: user.email } });
+  } catch (err) {
+    console.error("Signup error:", err.message);
+    res.status(500).json({ message: "Server error. Please try again." });
+  }
 });
 
 router.post("/login", async (req, res) => {
   const { email, password } = req.body;
-  const user = users.find((u) => u.email === email);
-  if (!user) return res.status(401).json({ message: "Invalid credentials" });
+  if (!email || !password)
+    return res.status(400).json({ message: "Email and password are required." });
 
-  const valid = await bcrypt.compare(password, user.password);
-  if (!valid) return res.status(401).json({ message: "Invalid credentials" });
+  try {
+    const user = await User.findOne({ email: email.toLowerCase() });
+    if (!user) return res.status(401).json({ message: "No account found with this email." });
 
-  res.json({ token: signToken(user), user: { name: user.name, email: user.email } });
-});
+    const match = await bcrypt.compare(password, user.password);
+    if (!match) return res.status(401).json({ message: "Incorrect password." });
 
-router.post("/forgot-password", async (req, res) => {
-  const { email } = req.body;
-  const user = users.find((u) => u.email === email);
-
-  // Always respond 200 to prevent email enumeration
-  if (!user) return res.json({ message: "If that email exists, a reset link has been sent." });
-
-  const token = crypto.randomBytes(32).toString("hex");
-  resetTokens.set(token, { userId: user.id, expires: Date.now() + 3600000 });
-
-  const resetUrl = `${process.env.CLIENT_URL || "http://localhost:5173"}/reset-password?token=${token}`;
-
-  if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-    try {
-      await getTransporter().sendMail({
-        from: `"Amazon Lens" <${process.env.EMAIL_USER}>`,
-        to: email,
-        subject: "Reset your Amazon Lens password",
-        html: `<p>Hi ${user.name},</p><p>Click the link below to reset your password (expires in 1 hour):</p><p><a href="${resetUrl}">${resetUrl}</a></p><p>If you didn't request this, ignore this email.</p>`
-      });
-    } catch (err) {
-      console.error("Email send error:", err.message);
-    }
-  } else {
-    console.log("Reset link (no email configured):", resetUrl);
+    const token = makeToken(user);
+    res.json({ token, user: { id: user._id, name: user.name, email: user.email } });
+  } catch (err) {
+    console.error("Login error:", err.message);
+    res.status(500).json({ message: "Server error. Please try again." });
   }
-
-  res.json({ message: "If that email exists, a reset link has been sent." });
-});
-
-router.post("/reset-password", async (req, res) => {
-  const { token, newPassword } = req.body;
-  const record = resetTokens.get(token);
-
-  if (!record || record.expires < Date.now()) {
-    return res.status(400).json({ message: "Reset link expired or invalid" });
-  }
-
-  const user = users.find((u) => u.id === record.userId);
-  if (!user) return res.status(400).json({ message: "User not found" });
-
-  user.password = await bcrypt.hash(newPassword, 10);
-  resetTokens.delete(token);
-
-  res.json({ message: "Password reset successfully" });
 });
 
 export default router;
