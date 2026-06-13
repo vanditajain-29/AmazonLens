@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { senseItems, products } from "../data/mockData.js";
+import { getAllProducts } from "./products.js";
 
 const router = Router();
 
@@ -10,9 +11,10 @@ router.get("/predictions", (req, res) => {
 });
 
 // Simple heuristic analyzer for a product's reviews to produce a trust score and human reasons.
-router.post("/analyze", (req, res) => {
+router.post("/analyze", async (req, res) => {
   const { productId } = req.body || {};
-  const product = products.find((p) => p.id === productId);
+  const allProducts = await getAllProducts();
+  const product = allProducts.find((p) => p.id === productId);
   if (!product) return res.status(404).json({ message: "Product not found" });
 
   const reviews = product.reviews || [];

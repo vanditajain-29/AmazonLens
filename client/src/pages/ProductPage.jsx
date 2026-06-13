@@ -40,7 +40,12 @@ export default function ProductPage() {
           try {
             const { data: analysisRes } = await axios.post(`${API}/api/sense/analyze`, { productId: data.product.id });
             if (analysisRes?.analysis) {
-              setProduct((prev) => ({ ...prev, trustScore: analysisRes.analysis.trustScore, trustReasons: analysisRes.analysis.reasons || [] }));
+              setProduct((prev) => ({
+                ...prev,
+                // Only override trustScore for products without hand-crafted data (no trustBreakdown)
+                trustScore: prev.trustBreakdown ? prev.trustScore : analysisRes.analysis.trustScore,
+                trustReasons: analysisRes.analysis.reasons || []
+              }));
             }
           } catch (err) {
             // ignore analysis errors; keep existing product trustScore
