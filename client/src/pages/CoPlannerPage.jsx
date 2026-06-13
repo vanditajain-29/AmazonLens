@@ -6,7 +6,8 @@ import {
   Calendar, Crown, ChevronDown, ChevronUp, Copy, X, Loader2,
   Clock, Target, BarChart3, MessageSquare, ThumbsUp,
   ArrowRight, Shield, Bell, Activity, Archive, LogOut,
-  CircleDot, Sparkles, UserPlus, QrCode, ExternalLink, Search, ThumbsDown
+  CircleDot, Sparkles, UserPlus, QrCode, ExternalLink, Search, ThumbsDown,
+  GripVertical
 } from "lucide-react";
 import { useCoPlanner } from "../contexts/CoPlannerContext.jsx";
 import { useAuth } from "../contexts/AuthContext.jsx";
@@ -461,12 +462,13 @@ function PlansDashboard({ plans, onCreated, onOpenPlan, onDeletePlan }) {
 }
 
 // ─── PlanItem ─────────────────────────────────────────────────────────────────
-function PlanItem({ item, members, currentUser, onAssign, onUpdateStatus, onRemove, onComment, onVote }) {
+function PlanItem({ item, members, currentUser, onAssign, onUpdateStatus, onRemove, onComment, onVote, index, onDragStart, onDragOver, onDrop, isDragging }) {
   const p = item.product;
   if (!p) return null;
 
   const isPurchased = item.status === "purchased" || item.status === "delivered";
   const assignedMember = members.find((m) => m.name === item.assignedTo);
+  const priorityCfg = PRIORITY_CONFIG[item.priority] || PRIORITY_CONFIG.important;
 
   const handleCheck = () => {
     if (isPurchased) {
@@ -477,7 +479,22 @@ function PlanItem({ item, members, currentUser, onAssign, onUpdateStatus, onRemo
   };
 
   return (
-    <div className={`flex items-center gap-3 p-3 rounded-lg border transition-colors ${isPurchased ? "bg-gray-50 border-gray-200" : "bg-white border-gray-200 hover:border-gray-300"}`}>
+    <div
+      draggable
+      onDragStart={(e) => onDragStart(e, index)}
+      onDragOver={(e) => onDragOver(e, index)}
+      onDrop={(e) => onDrop(e, index)}
+      className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${
+        isDragging ? "opacity-40 scale-95 border-[#FF9900] bg-amber-50" : isPurchased ? "bg-gray-50 border-gray-200" : "bg-white border-gray-200 hover:border-gray-300"
+      }`}
+    >
+      {/* Drag handle */}
+      <div className="cursor-grab active:cursor-grabbing text-gray-300 hover:text-gray-500 flex-shrink-0">
+        <GripVertical size={16} />
+      </div>
+
+      {/* Priority indicator — removed from item, shown in header instead */}
+
       {/* Checkbox */}
       <button
         onClick={handleCheck}
@@ -594,6 +611,10 @@ export default function CoPlannerPage() {
   const [loading, setLoading] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
   const [recommendations, setRecommendations] = useState([]);
+  const [aiSuggestions, setAiSuggestions] = useState([]);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiPowered, setAiPowered] = useState(false);
+  const [dragIndex, setDragIndex] = useState(null);
   const currentUser = memberName;
 
   // Load plan
@@ -607,6 +628,7 @@ export default function CoPlannerPage() {
           if (d.plan) {
             trackPlan(d.plan);
             loadRecommendations(d.plan.id);
+            loadAiSuggestions(d.plan.id);
           }
         })
         .catch(() => {})
@@ -648,6 +670,7 @@ export default function CoPlannerPage() {
     trackPlan(newPlan);
     window.history.replaceState(null, "", `/co-planner?id=${newPlan.id}`);
     loadRecommendations(newPlan.id);
+    loadAiSuggestions(newPlan.id);
   };
 
   const loadRecommendations = async (planId) => {
@@ -656,6 +679,23 @@ export default function CoPlannerPage() {
       const data = await res.json();
       setRecommendations(data.recommended || []);
     } catch (_) {}
+  };
+
+  const loadAiSuggestions = async (planId) => {
+    setAiLoading(true);
+    try {
+      const res = await fetch(`${API}/api/co-planner/${planId}/ai-suggestions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const data = await res.json();
+      setAiSuggestions(data.suggestions || []);
+      setAiPowered(data.aiPowered || false);
+    } catch (_) {
+      setAiSuggestions([]);
+    } finally {
+      setAiLoading(false);
+    }
   };
 
   const addItem = async (productId) => {
@@ -713,6 +753,55 @@ export default function CoPlannerPage() {
     if (data.plan) setPlan(data.plan);
   };
 
+  // ── Drag and drop handlers ──
+  const PRIORITY_ORDER = ["critical", "important", "optional"];
+
+  const handleDragStart = (e, index) => {
+    setDragIndex(index);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleDragOver = (e, index) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+  };
+
+  const handleDrop = async (e, dropIndex) => {
+    e.preventDefault();
+    if (dragIndex === null || dragIndex === dropIndex) {
+      setDragIndex(null);
+      return;
+    }
+
+    // Reorder items locally
+    const items = [...plan.items];
+    const [dragged] = items.splice(dragIndex, 1);
+    items.splice(dropIndex, 0, dragged);
+
+    // Assign priority based on new position
+    const total = items.length;
+    const updatedItems = items.map((item, i) => {
+      let priority;
+      if (i < total / 3) priority = "critical";
+      else if (i < (total * 2) / 3) priority = "important";
+      else priority = "optional";
+      return { ...item, priority };
+    });
+
+    // Update local state immediately for responsiveness
+    setPlan((prev) => ({ ...prev, items: updatedItems }));
+    setDragIndex(null);
+
+    // Persist to server
+    try {
+      await fetch(`${API}/api/co-planner/${plan.id}/reorder`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderedProductIds: updatedItems.map((i) => i.productId) }),
+      });
+    } catch (_) {}
+  };
+
   // ── Show loading while fetching ──
   if (loading) {
     return (
@@ -740,7 +829,7 @@ export default function CoPlannerPage() {
           if (!r.ok) throw new Error("not found");
           return r.json();
         })
-        .then((d) => { if (d.plan) { setPlan(d.plan); trackPlan(d.plan); loadRecommendations(d.plan.id); } })
+        .then((d) => { if (d.plan) { setPlan(d.plan); trackPlan(d.plan); loadRecommendations(d.plan.id); loadAiSuggestions(d.plan.id); } })
         .catch(() => { deletePlan(id); })
         .finally(() => setLoading(false));
     }} />;
@@ -834,29 +923,43 @@ export default function CoPlannerPage() {
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-bold text-[#0F1111] flex items-center gap-1.5">
                 <Package size={15} /> Items ({stats.itemCount})
+                <span className="text-[10px] font-normal text-gray-400 ml-2">
+                  Priority ⬆ ⬇
+                </span>
               </h2>
               <div className="flex items-center gap-2 text-xs text-gray-500">
                 <span>{stats.purchasedCount} purchased</span>
-                <span>{stats.pendingCount} pending</span>
+                <span>{stats.itemCount - stats.purchasedCount} pending</span>
               </div>
             </div>
 
             {plan.items.length === 0 ? (
               <div className="bg-white border border-gray-200 rounded-lg p-8 text-center">
                 <ShoppingCart size={32} className="mx-auto text-gray-300 mb-2" />
-                <p className="text-sm text-gray-500">No items yet. Add products from recommendations below.</p>
+                <p className="text-sm text-gray-500 mb-3">No items yet. Browse products and add them to this plan.</p>
+                <a
+                  href="/s"
+                  className="inline-flex items-center gap-1.5 px-5 py-2.5 bg-[#FFD814] hover:bg-[#F7CA00] rounded-full text-sm font-bold text-[#0F1111] border border-[#FCD200] transition-colors"
+                >
+                  <Search size={14} /> Shop Now
+                </a>
               </div>
             ) : (
-              plan.items.map((item) => (
+              plan.items.map((item, index) => (
                 <PlanItem
                   key={item.productId}
                   item={item}
+                  index={index}
                   members={plan.members}
                   currentUser={currentUser}
                   onAssign={assignItem}
                   onUpdateStatus={updateStatus}
                   onRemove={removeItem}
                   onVote={voteItem}
+                  onDragStart={handleDragStart}
+                  onDragOver={handleDragOver}
+                  onDrop={handleDrop}
+                  isDragging={dragIndex === index}
                 />
               ))
             )}
@@ -864,41 +967,54 @@ export default function CoPlannerPage() {
 
           {/* Sidebar */}
           <div className="space-y-4">
-            {/* Quick actions */}
-            <div className="bg-white rounded-lg border border-gray-200 p-4">
-              <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-3">Quick Actions</h3>
-              <div className="space-y-2">
-                <button onClick={() => setShowInvite(true)} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-left hover:bg-gray-50 border border-gray-200">
-                  <UserPlus size={14} className="text-[#FF9900]" /> Invite Member
-                </button>
-                <button onClick={() => loadRecommendations(plan.id)} className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs text-left hover:bg-gray-50 border border-gray-200">
-                  <Sparkles size={14} className="text-[#FF9900]" /> Get Recommendations
+            {/* AI Suggestions */}
+            <div className="bg-gradient-to-br from-amber-50 to-orange-50 rounded-lg border border-amber-200 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider flex items-center gap-1.5">
+                  <Sparkles size={12} className="text-[#FF9900]" />
+                  {aiPowered ? "AI Suggestions" : "Smart Suggestions"}
+                </h3>
+                <button
+                  onClick={() => loadAiSuggestions(plan.id)}
+                  disabled={aiLoading}
+                  className="text-[10px] text-[#007185] hover:underline disabled:opacity-50"
+                >
+                  {aiLoading ? "Loading..." : "Refresh"}
                 </button>
               </div>
-            </div>
-
-            {/* Recommendations */}
-            {recommendations.length > 0 && (
-              <div className="bg-white rounded-lg border border-gray-200 p-4">
-                <h3 className="text-xs font-bold text-gray-700 uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                  <Sparkles size={12} className="text-[#FF9900]" /> Suggested
-                </h3>
+              {aiPowered && (
+                <p className="text-[10px] text-amber-700 mb-2 flex items-center gap-1">
+                  <Sparkles size={9} /> AI analyzed your goal "{plan.name}" to find these
+                </p>
+              )}
+              {aiLoading && (
+                <div className="flex items-center justify-center py-6">
+                  <Loader2 size={20} className="animate-spin text-[#FF9900]" />
+                </div>
+              )}
+              {!aiLoading && aiSuggestions.length === 0 && (
+                <p className="text-xs text-gray-500 py-4 text-center">No suggestions yet. Click refresh to generate.</p>
+              )}
+              {!aiLoading && aiSuggestions.length > 0 && (
                 <div className="space-y-2">
-                  {recommendations.slice(0, 5).map((p) => (
-                    <div key={p.id} className="flex items-center gap-2 p-2 rounded-lg hover:bg-gray-50">
+                  {aiSuggestions.map((p) => (
+                    <div key={p.id} className="flex items-center gap-2 p-2 rounded-lg bg-white border border-gray-100 hover:border-[#FF9900] transition-colors">
                       <img src={p.image} alt={p.name} className="w-10 h-10 rounded object-contain bg-gray-50 p-0.5" />
                       <div className="flex-1 min-w-0">
                         <p className="text-[11px] text-gray-700 line-clamp-1">{p.name}</p>
                         <p className="text-xs font-bold text-[#0F1111]">{fmt(p.price)}</p>
+                        {p.aiReason && (
+                          <p className="text-[10px] text-amber-700 line-clamp-1 mt-0.5">{p.aiReason}</p>
+                        )}
                       </div>
-                      <button onClick={() => addItem(p.id)} className="p-1.5 text-[#FF9900] hover:bg-amber-50 rounded">
+                      <button onClick={() => addItem(p.id)} className="p-1.5 text-[#FF9900] hover:bg-amber-50 rounded flex-shrink-0">
                         <Plus size={14} />
                       </button>
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
+              )}
+            </div>
 
             {/* Activity feed */}
             <div className="bg-white rounded-lg border border-gray-200 p-4">
