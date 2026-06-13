@@ -23,12 +23,10 @@ app.use("/api/auth", authRoutes);
 
 app.get("/api/health", (_, res) => res.json({ status: "ok" }));
 
-// MongoDB (optional - falls back to mock data if not configured)
-if (process.env.MONGODB_URI) {
-  mongoose
-    .connect(process.env.MONGODB_URI)
-    .then(() => console.log("MongoDB connected"))
-    .catch((err) => console.log("MongoDB skipped:", err.message));
-}
+// MongoDB
+mongoose
+  .connect(process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/amazon-lens")
+  .then(() => console.log("MongoDB connected"))
+  .catch((err) => console.log("MongoDB connection failed:", err.message));
 
 app.listen(PORT, () => console.log(`Server running on http://localhost:${PORT}`));

@@ -3,13 +3,13 @@ import { Link, useNavigate } from "react-router-dom";
 import { useCart } from "../contexts/CartContext.jsx";
 import { formatPrice, getTrustColor, API } from "../utils/format.js";
 import StarRating from "../components/StarRating.jsx";
-import { Trash2, RefreshCw, ShoppingBag, Clock, ChevronRight } from "lucide-react";
+import { Trash2, RefreshCw, ShoppingBag, Clock } from "lucide-react";
 import axios from "axios";
 
 const TABS = ["Cart", "Soon"];
 
 export default function CartPage() {
-  const { items, removeFromCart, updateQty, total, itemCount } = useCart();
+  const { items, addToCart, removeFromCart, updateQty, total, itemCount } = useCart();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("Cart");
   const [senseItems, setSenseItems] = useState([]);
@@ -233,7 +233,11 @@ export default function CartPage() {
                     </p>
                   </div>
                   <button
-                    onClick={() => { /* add to cart */ }}
+                    onClick={() => {
+                      const product = { id: si.productId, name: si.productName, price: si.price, trustScore: si.trustScore, thumbnail: si.thumbnail, isPrime: true };
+                      addToCart(product);
+                      setActiveTab("Cart");
+                    }}
                     className="flex-shrink-0 bg-[#FFD814] hover:bg-[#F7CA00] text-[#0F1111] text-xs font-bold px-4 py-2 rounded-full"
                   >
                     Reorder
