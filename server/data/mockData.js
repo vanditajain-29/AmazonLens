@@ -21,12 +21,19 @@ export const products = [
     waitReason: "Prime Day in 8 days — historically drops 18–22%",
     spikePriceMonths: [0, 1, 3, 7],
     priceHistory: [89999, 89999, 62999, 89999, 54999, 54999, 54999, 89999, 54999, 54999, 54999, 54999],
+    trustBreakdown: {
+      reviewAuthenticity: { score: 58, detail: "2 of 5 reviews flagged as bot-pattern — all-caps text, 0-day accounts, and coordinated burst posting on the same date." },
+      returnRate: { score: 72, detail: "14.1% return rate — slightly above the 12.3% category average. Common reason: 'not as described'." },
+      warrantyClaims: { score: 65, detail: "11% of buyers filed a warranty claim within 6 months, primarily for remote responsiveness and backlight bleed." },
+      sellerReliability: { score: 88, detail: "Cloudtail India holds a 4.6★ seller rating and has been active on Amazon since 2012. Amazon-fulfilled." },
+      priceStability: { score: 34, detail: "Price changed 8 times in 12 months. MRP of ₹89,999 is listed only to show a 39% 'discount' — the product has never sold at that MRP." }
+    },
     images: [
-      "https://m.media-amazon.com/images/I/71a8NDW1oyL._AC_SL1500_.jpg",
-      "https://m.media-amazon.com/images/I/61yBqpD2aFL._AC_SL1500_.jpg",
-      "https://m.media-amazon.com/images/I/71wGbEnYFuL._AC_SL1500_.jpg"
+      "https://placehold.co/400x400/1a1a2e/FFFFFF?font=montserrat&text=Sony+Bravia+55%22",
+      "https://placehold.co/400x400/1a1a2e/FF9900?font=montserrat&text=Sony+Bravia+Back",
+      "https://placehold.co/400x400/1a1a2e/FFFFFF?font=montserrat&text=Sony+Bravia+Side"
     ],
-    thumbnail: "https://m.media-amazon.com/images/I/71a8NDW1oyL._AC_SL1500_.jpg",
+    thumbnail: "https://placehold.co/400x400/1a1a2e/FFFFFF?font=montserrat&text=Sony+Bravia+55%22",
     description:
       "Experience stunning 4K HDR picture quality with X-Reality PRO and Triluminos Pro display technology. Google TV gives you easy access to your favourite streaming apps with voice control via Alexa or Google Assistant.",
     features: [
@@ -171,9 +178,9 @@ export const products = [
     spikePriceMonths: [3, 9],
     priceHistory: [18999, 18999, 12999, 11999, 8999, 8999, 8999, 8999, 8999, 11999, 8999, 8999],
     images: [
-      "https://m.media-amazon.com/images/I/61f3Q6k1M4L._AC_SL1500_.jpg"
+      "https://placehold.co/400x400/f4a261/000000?font=montserrat&text=JBL+Cinema+SB271"
     ],
-    thumbnail: "https://m.media-amazon.com/images/I/61f3Q6k1M4L._AC_SL1500_.jpg",
+    thumbnail: "https://placehold.co/400x400/f4a261/000000?font=montserrat&text=JBL+Cinema+SB271",
     description: "Experience powerful home cinema audio with JBL Pro Sound. The wireless subwoofer delivers deep bass without cable clutter.",
     features: [
       "2.1 Channel with wireless subwoofer",
@@ -269,9 +276,9 @@ export const products = [
     spikePriceMonths: [],
     priceHistory: [1299, 1299, 999, 999, 999, 1099, 999, 999, 999, 999, 999, 999],
     images: [
-      "https://m.media-amazon.com/images/I/61OqdB1GZKL._AC_SL1500_.jpg"
+      "https://placehold.co/400x400/e63946/FFFFFF?font=montserrat&text=boAt+Airdopes+141"
     ],
-    thumbnail: "https://m.media-amazon.com/images/I/61OqdB1GZKL._AC_SL1500_.jpg",
+    thumbnail: "https://placehold.co/400x400/e63946/FFFFFF?font=montserrat&text=boAt+Airdopes+141",
     description: "Experience ultimate audio freedom with boAt Airdopes 141. Features ENx Technology for clear calls and 42H of total playback.",
     features: [
       "42H total playback with case",
@@ -317,9 +324,9 @@ export const products = [
     spikePriceMonths: [],
     priceHistory: [750, 749, 699, 649, 649, 649, 649, 649, 699, 649, 649, 649],
     images: [
-      "https://m.media-amazon.com/images/I/71Rj8EH9Y+L._AC_SL1500_.jpg"
+      "https://placehold.co/400x400/8B1A1A/FFFFFF?font=montserrat&text=Nescafe+Gold+200g"
     ],
-    thumbnail: "https://m.media-amazon.com/images/I/71Rj8EH9Y+L._AC_SL1500_.jpg",
+    thumbnail: "https://placehold.co/400x400/8B1A1A/FFFFFF?font=montserrat&text=Nescafe+Gold+200g",
     description: "Nescafé Gold Blend is a premium instant coffee made from a blend of Arabica and Robusta beans, expertly roasted to deliver a rich, smooth flavour.",
     features: [
       "Arabica and Robusta blend",
@@ -363,9 +370,9 @@ export const products = [
     spikePriceMonths: [2, 8],
     priceHistory: [56900, 48999, 56900, 39999, 34999, 32999, 32999, 32999, 56900, 32999, 32999, 32999],
     images: [
-      "https://m.media-amazon.com/images/I/71L5omFmEbL._AC_SL1500_.jpg"
+      "https://placehold.co/400x400/1d3557/FFFFFF?font=montserrat&text=Samsung+43%22+4K"
     ],
-    thumbnail: "https://m.media-amazon.com/images/I/71L5omFmEbL._AC_SL1500_.jpg",
+    thumbnail: "https://placehold.co/400x400/1d3557/FFFFFF?font=montserrat&text=Samsung+43%22+4K",
     description: "Samsung Crystal 4K processor with 4K UHD upscaling. Tizen Smart TV with access to Netflix, Prime Video, and more.",
     features: [
       "43 inch Crystal 4K display",
@@ -412,9 +419,9 @@ export const products = [
     spikePriceMonths: [],
     priceHistory: [3200, 2800, 2499, 1999, 1895, 1895, 1895, 1895, 1895, 1895, 1895, 1895],
     images: [
-      "https://m.media-amazon.com/images/I/71sA+QzLe3L._AC_SL1500_.jpg"
+      "https://placehold.co/400x400/2d6a4f/FFFFFF?font=montserrat&text=Prestige+5L+Cooker"
     ],
-    thumbnail: "https://m.media-amazon.com/images/I/71sA+QzLe3L._AC_SL1500_.jpg",
+    thumbnail: "https://placehold.co/400x400/2d6a4f/FFFFFF?font=montserrat&text=Prestige+5L+Cooker",
     description: "Hard anodised for durability and even heat distribution. Suitable for all stovetops.",
     features: [
       "5 litre capacity",
@@ -457,9 +464,9 @@ export const products = [
     spikePriceMonths: [],
     priceHistory: [7999, 7999, 6999, 6999, 6999, 5999, 6999, 6999, 6999, 6999, 6999, 6999],
     images: [
-      "https://m.media-amazon.com/images/I/61dXnSKCPTL._AC_SL1500_.jpg"
+      "https://placehold.co/400x400/FF9900/1a1a1a?font=montserrat&text=Fire+TV+Stick+4K"
     ],
-    thumbnail: "https://m.media-amazon.com/images/I/61dXnSKCPTL._AC_SL1500_.jpg",
+    thumbnail: "https://placehold.co/400x400/FF9900/1a1a1a?font=montserrat&text=Fire+TV+Stick+4K",
     description: "Fire TV Stick 4K Max supports Wi-Fi 6E for lightning-fast streaming. Access 1.5 million movies and TV episodes.",
     features: [
       "4K + HDR10+ streaming",
@@ -542,7 +549,7 @@ export const senseItems = [
     avgCycleDays: 28,
     daysOverdue: 0,
     urgency: "Due today",
-    thumbnail: "https://m.media-amazon.com/images/I/71Rj8EH9Y+L._AC_SL1500_.jpg"
+    thumbnail: "https://placehold.co/400x400/8B1A1A/FFFFFF?font=montserrat&text=Nescafe+Gold+200g"
   }
 ];
 

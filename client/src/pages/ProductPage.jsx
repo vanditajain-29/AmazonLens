@@ -102,7 +102,7 @@ export default function ProductPage() {
                 src={product.images?.[selectedImage] || product.thumbnail}
                 alt={product.name}
                 className="max-h-full max-w-full object-contain p-6"
-                onError={(e) => { e.target.src = `https://via.placeholder.com/400x400/EAEDED/131921?text=${product.brand}`; }}
+                onError={(e) => { e.target.src = `https://placehold.co/400x400/EAEDED/131921?text=${encodeURIComponent(product.brand)}`; }}
               />
             </div>
 
@@ -175,7 +175,7 @@ export default function ProductPage() {
               </div>
 
               {/* Trust score always visible */}
-              <TrustScore score={product.trustScore} size="lg" />
+              <TrustScore score={product.trustScore} size="lg" product={product} />
 
               {trustExpanded && (
                 <div className="mt-4 space-y-4">
