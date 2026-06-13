@@ -7,9 +7,6 @@ import { useSustainability } from "../contexts/SustainabilityContext.jsx";
 import { getSustainabilityData } from "../utils/sustainability.js";
 import StarRating from "../components/StarRating.jsx";
 import TrustScore from "../components/TrustLens/TrustScore.jsx";
-import PriceHistory from "../components/TrustLens/PriceHistory.jsx";
-import FakeDiscountAlert from "../components/TrustLens/FakeDiscountAlert.jsx";
-import BuyWaitBox from "../components/TrustLens/BuyWaitBox.jsx";
 import SuspiciousReviews from "../components/TrustLens/SuspiciousReviews.jsx";
 import WitnessPanel from "../components/WitnessPanel/WitnessPanel.jsx";
 import SustainabilityPanel from "../components/Sustainability/SustainabilityPanel.jsx";
@@ -30,6 +27,7 @@ export default function ProductPage() {
   const [qty, setQty] = useState(1);
   const [addedToCart, setAddedToCart] = useState(false);
   const [trustExpanded, setTrustExpanded] = useState(true);
+  const [trustAnalyzing, setTrustAnalyzing] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
 
   useEffect(() => {
@@ -40,21 +38,27 @@ export default function ProductPage() {
         setProduct(data.product);
         setSelectedImage(0);
 
-        // Request TrustLens analysis for this product (demo heuristic analyzer)
+        // Live TrustLens analysis — always overrides static mockData score
+        setTrustAnalyzing(true);
         (async () => {
           try {
             const { data: analysisRes } = await axios.post(`${API}/api/sense/analyze`, { productId: data.product.id });
             if (analysisRes?.analysis) {
               setProduct((prev) => ({
                 ...prev,
-                // Only override trustScore for products without hand-crafted data (no trustBreakdown)
-                trustScore: prev.trustBreakdown ? prev.trustScore : analysisRes.analysis.trustScore,
-                trustReasons: analysisRes.analysis.reasons || []
+                trustScore: analysisRes.analysis.trustScore,
+                trustBreakdown: analysisRes.analysis.breakdown,
+                trustReasons: analysisRes.analysis.reasons || [],
+                trustMeta: {
+                  reviewCount: analysisRes.analysis.reviewCount,
+                  sellerSince: analysisRes.analysis.sellerSince,
+                }
               }));
             }
           } catch (err) {
-            // ignore analysis errors; keep existing product trustScore
             console.warn("TrustLens analyze failed:", err?.message || err);
+          } finally {
+            setTrustAnalyzing(false);
           }
         })();
       })
@@ -189,41 +193,39 @@ export default function ProductPage() {
                 </button>
               </div>
 
-              {/* Trust score always visible */}
-              <TrustScore score={product.trustScore} size="lg" product={product} />
+              {/* Trust score — animates from scanning state to live result */}
+              <TrustScore score={product.trustScore} size="lg" product={trustAnalyzing ? null : product} analyzing={trustAnalyzing} />
 
-              {trustExpanded && (
+              {trustExpanded && !trustAnalyzing && (
                 <div className="mt-4 space-y-4">
-                  {/* TrustLens analysis reasons (from backend) */}
+                  {/* Live signal explanations from backend */}
                   {product.trustReasons && product.trustReasons.length > 0 && (
                     <div className="bg-white border border-gray-200 rounded-lg p-3">
-                      <div className="text-xs text-[#565959] font-medium mb-2">Why this score?</div>
-                      <ul className="list-disc list-inside text-xs text-[#0F1111] space-y-1">
+                      <div className="text-xs text-[#565959] font-semibold mb-2 flex items-center gap-1.5">
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#FF9900] inline-block" />
+                        Signals flagged by TrustLens™
+                      </div>
+                      <ul className="space-y-1.5">
                         {product.trustReasons.map((r, i) => (
-                          <li key={i}>{r}</li>
+                          <li key={i} className="text-xs text-[#0F1111] flex items-start gap-1.5">
+                            <span className="text-[#CC0C39] mt-0.5 flex-shrink-0">•</span>
+                            {r}
+                          </li>
                         ))}
                       </ul>
                     </div>
                   )}
-                  {/* Fake discount alert */}
-                  {product.isFakeDiscount && (
-                    <FakeDiscountAlert note={product.fakeDiscountNote} />
-                  )}
-
-                  {/* Buy/Wait recommendation */}
-                  <BuyWaitBox buyNowOrWait={product.buyNowOrWait} waitReason={product.waitReason} />
-
-                  {/* Price history graph */}
-                  <div className="bg-white border border-gray-200 rounded-lg p-4">
-                    <PriceHistory
-                      priceHistory={product.priceHistory}
-                      currentPrice={product.price}
-                      spikePriceMonths={product.spikePriceMonths}
-                    />
-                  </div>
 
                   {/* Suspicious reviews */}
                   <SuspiciousReviews reviews={product.reviews || []} />
+                </div>
+              )}
+
+              {trustExpanded && trustAnalyzing && (
+                <div className="mt-4 bg-white border border-gray-100 rounded-lg p-4 text-center">
+                  <p className="text-xs text-[#565959] animate-pulse">
+                    Running signal analysis — review authenticity, seller history, category benchmarks…
+                  </p>
                 </div>
               )}
             </div>
@@ -236,8 +238,8 @@ export default function ProductPage() {
               <div className="flex items-baseline gap-2 flex-wrap">
                 <span className="text-sm text-[#565959]">M.R.P.:</span>
                 <span className="text-[#565959] text-sm line-through">{formatPrice(product.originalPrice)}</span>
-                <span className={`text-xs font-bold px-2 py-0.5 rounded ${trust.bg} ${trust.text}`}>
-                  -{product.discount}% (TrustLens verified)
+                <span className="text-xs font-bold px-2 py-0.5 rounded bg-[#CC0C39] text-white">
+                  -{product.discount}%
                 </span>
               </div>
               <div className="flex items-baseline gap-1 mt-1">
@@ -461,19 +463,18 @@ export default function ProductPage() {
               </div>
 
               {/* TrustLens mini-badge in buy box */}
-              <div className={`mt-4 ${trust.bg} rounded-lg px-3 py-2`}>
+              <div className={`mt-4 ${trustAnalyzing ? "bg-[#FF9900]" : trust.bg} rounded-lg px-3 py-2 transition-colors duration-700`}>
                 <div className="flex items-center justify-between">
                   <div>
-                    <div className="text-white text-xs font-bold">TrustLens Score</div>
-                    <div className="text-white/80 text-[10px]">{trust.label}</div>
+                    <div className="text-white text-xs font-bold">TrustLens™ Score</div>
+                    <div className="text-white/80 text-[10px]">
+                      {trustAnalyzing ? "Analyzing…" : trust.label}
+                    </div>
                   </div>
-                  <div className="text-white text-2xl font-bold">{product.trustScore}</div>
+                  <div className="text-white text-2xl font-bold">
+                    {trustAnalyzing ? "—" : product.trustScore}
+                  </div>
                 </div>
-                {product.buyNowOrWait === "wait" && (
-                  <div className="text-white/90 text-[10px] mt-1 border-t border-white/20 pt-1">
-                    ⏳ {product.waitReason}
-                  </div>
-                )}
               </div>
 
               {/* Sustainability mini-badge in buy box (only when mode is on) */}
