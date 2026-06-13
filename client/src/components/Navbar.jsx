@@ -1,12 +1,6 @@
-<<<<<<< HEAD
-import React, { useState, useRef } from "react";
-import { useNavigate, Link } from "react-router-dom";
-import { ShoppingCart, Search, MapPin, ChevronDown, Menu, Leaf, Heart } from "lucide-react";
-=======
 import { useState, useRef, useEffect } from "react";
 import { useNavigate, useLocation, useSearchParams, Link } from "react-router-dom";
-import { ShoppingCart, Search, MapPin, ChevronDown, Menu, Sparkles, Leaf } from "lucide-react";
->>>>>>> 1dc00a4d49c2e15a3d0a4ff8a5021dee7e9590f2
+import { ShoppingCart, Search, MapPin, ChevronDown, Menu, Sparkles, Leaf, Heart } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext.jsx";
 import { useCart } from "../contexts/CartContext.jsx";
 import { useWishlist } from "../contexts/WishlistContext.jsx";
