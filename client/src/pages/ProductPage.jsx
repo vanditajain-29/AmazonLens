@@ -3,15 +3,17 @@ import { useParams, Link, useNavigate } from "react-router-dom";
 import axios from "axios";
 import { API, formatPrice, getTrustColor } from "../utils/format.js";
 import { useCart } from "../contexts/CartContext.jsx";
+import { useCoPlanner } from "../contexts/CoPlannerContext.jsx";
 import { useSustainability } from "../contexts/SustainabilityContext.jsx";
 import { getSustainabilityData } from "../utils/sustainability.js";
 import StarRating from "../components/StarRating.jsx";
 import TrustScore from "../components/TrustLens/TrustScore.jsx";
 import SuspiciousReviews from "../components/TrustLens/SuspiciousReviews.jsx";
+import PriceDropPrediction from "../components/TrustLens/PriceDropPrediction.jsx";
 import WitnessPanel from "../components/WitnessPanel/WitnessPanel.jsx";
 import SustainabilityPanel from "../components/Sustainability/SustainabilityPanel.jsx";
 import SustainabilityBadge from "../components/Sustainability/SustainabilityBadge.jsx";
-import { Shield, Check, Truck, RotateCcw, ChevronRight, ChevronLeft, Share2, Heart } from "lucide-react";
+import { Shield, Check, Truck, RotateCcw, ChevronRight, ChevronLeft, Share2, Heart, Users as UsersIcon } from "lucide-react";
 
 const QTY_OPTIONS = [1, 2, 3, 4, 5];
 
@@ -19,6 +21,7 @@ export default function ProductPage() {
   const { productId } = useParams();
   const navigate = useNavigate();
   const { addToCart } = useCart();
+  const { plans: coPlannerPlans, startAddToPlan } = useCoPlanner();
   const { showOnProduct } = useSustainability();
 
   const [product, setProduct] = useState(null);
@@ -218,6 +221,11 @@ export default function ProductPage() {
 
                   {/* Suspicious reviews */}
                   <SuspiciousReviews reviews={product.reviews || []} />
+
+                  {/* Price Drop Prediction */}
+                  <div className="mt-4">
+                    <PriceDropPrediction productId={product.id} />
+                  </div>
                 </div>
               )}
 
@@ -420,6 +428,14 @@ export default function ProductPage() {
                 >
                   Buy Now
                 </button>
+                {coPlannerPlans.length > 0 && (
+                  <button
+                    onClick={() => startAddToPlan(product)}
+                    className="w-full flex items-center justify-center gap-1.5 py-2 rounded-full text-sm font-medium border border-gray-300 text-[#0F1111] hover:border-[#FF9900] hover:text-[#FF9900] transition-colors"
+                  >
+                    <UsersIcon size={14} /> Add to Co-Plan
+                  </button>
+                )}
               </div>
 
               <hr className="my-4 border-gray-200" />

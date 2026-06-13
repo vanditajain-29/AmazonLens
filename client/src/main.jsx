@@ -5,6 +5,8 @@ import App from "./App.jsx";
 import { AuthProvider } from "./contexts/AuthContext.jsx";
 import { CartProvider } from "./contexts/CartContext.jsx";
 import { SustainabilityProvider } from "./contexts/SustainabilityContext.jsx";
+import { CoPlannerProvider } from "./contexts/CoPlannerContext.jsx";
+import CoPlannerPicker from "./components/CoPlannerPicker.jsx";
 import "./index.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
@@ -12,7 +14,10 @@ ReactDOM.createRoot(document.getElementById("root")).render(
     <AuthProvider>
       <CartProvider>
         <SustainabilityProvider>
-          <App />
+          <CoPlannerProvider>
+            <App />
+            <CoPlannerPicker />
+          </CoPlannerProvider>
         </SustainabilityProvider>
       </CartProvider>
     </AuthProvider>

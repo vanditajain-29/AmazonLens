@@ -9,6 +9,8 @@ import witnessRoutes from "./routes/witness.js";
 import senseRoutes from "./routes/sense.js";
 import authRoutes from "./routes/auth.js";
 import smartSearch from "./routes/smartSearch.js";
+import priceDropRoutes from "./routes/priceDrop.js";
+import coPlannerRoutes from "./routes/coPlanner.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 dotenv.config({ path: path.resolve(__dirname, "../.env") });
@@ -25,6 +27,8 @@ app.use('/api/smart-search', smartSearch);
 app.use("/api/witness", witnessRoutes);
 app.use("/api/sense", senseRoutes);
 app.use("/api/auth", authRoutes);
+app.use("/api/price-drop", priceDropRoutes);
+app.use("/api/co-planner", coPlannerRoutes);
 
 app.get("/api/health", (_, res) => res.json({ status: "ok" }));
 

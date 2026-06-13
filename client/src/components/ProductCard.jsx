@@ -1,13 +1,15 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { useCart } from "../contexts/CartContext.jsx";
+import { useCoPlanner } from "../contexts/CoPlannerContext.jsx";
 import { formatPrice, getTrustColor } from "../utils/format.js";
 import StarRating from "./StarRating.jsx";
-import { Leaf } from "lucide-react";
+import { Leaf, Users } from "lucide-react";
 
 export default function ProductCard({ product, greenerChoice = false }) {
   const navigate = useNavigate();
   const { addToCart } = useCart();
+  const { startAddToPlan, plans } = useCoPlanner();
   const trust = getTrustColor(product.trustScore);
 
   return (
@@ -89,6 +91,17 @@ export default function ProductCard({ product, greenerChoice = false }) {
         >
           Add to Cart
         </button>
+        {plans.length > 0 && (
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              startAddToPlan(product);
+            }}
+            className="mt-1.5 w-full flex items-center justify-center gap-1 text-xs py-1.5 rounded-full border border-gray-300 text-[#0F1111] hover:border-[#FF9900] hover:text-[#FF9900] transition-colors"
+          >
+            <Users size={12} /> Add to Co-Plan
+          </button>
+        )}
       </div>
     </div>
   );

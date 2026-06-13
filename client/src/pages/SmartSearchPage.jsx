@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { useCart } from '../contexts/CartContext.jsx';
 import {
   Search,
   Sparkles,
@@ -276,6 +277,7 @@ function BundleProductCard({ product, onSwap }) {
 
 // ─── BundleCard (v2) ──────────────────────────────────────────────────────────
 function BundleCard({ bundle, budget, whyReasons }) {
+  const { addToCart } = useCart();
   const [expanded, setExpanded] = useState(true);
   const [swapTarget, setSwapTarget] = useState(null);
   const [products, setProducts] = useState(bundle.products);
@@ -385,7 +387,22 @@ function BundleCard({ bundle, budget, whyReasons }) {
                 <TrustBadge score={metrics.avgTrust} />
               </div>
             </div>
-            <button className="bg-[#ff9900] hover:bg-[#f08800] text-white font-bold py-2.5 px-8 rounded-lg transition-colors text-sm shadow-sm">
+            <button
+              onClick={() => {
+                products.forEach((p) => addToCart({
+                  id: p.id,
+                  name: p.name,
+                  price: p.price,
+                  originalPrice: p.originalPrice,
+                  trustScore: p.trustScore,
+                  thumbnail: p.image,
+                  image: p.image,
+                  isPrime: true,
+                  qty: 1,
+                }));
+              }}
+              className="bg-[#ff9900] hover:bg-[#f08800] text-white font-bold py-2.5 px-8 rounded-lg transition-colors text-sm shadow-sm"
+            >
               Add Bundle to Cart
             </button>
           </div>
@@ -662,7 +679,7 @@ export default function SmartSearchPage() {
           <div className="flex items-center gap-1.5 mb-2">
             <Sparkles size={11} className="text-[#ff9900]" />
             <span className="text-[10px] font-semibold text-[#ff9900] uppercase tracking-widest">
-              ✨ AI Search
+              AI Search
             </span>
           </div>
 

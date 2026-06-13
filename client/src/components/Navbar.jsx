@@ -89,7 +89,7 @@ export default function Navbar() {
               }`}
             >
               <Sparkles size={13} className={smartMode ? "text-white" : "text-[#FF9900]"} />
-              <span className="hidden sm:inline">{smartMode ? "✨ Smart" : "AI"}</span>
+              <span className="hidden sm:inline">{smartMode ? "Smart" : "AI"}</span>
             </button>
 
             {/* Category selector (hidden in smart mode) */}
@@ -280,6 +280,9 @@ export default function Navbar() {
           </Link>
           <Link to="/minitv" className="px-3 py-2 hover:bg-white/10 rounded text-sm flex-shrink-0">
             Amazon miniTV
+          </Link>
+          <Link to="/co-planner" className="px-3 py-2 hover:bg-white/10 rounded text-sm text-[#FF9900] font-medium flex-shrink-0">
+            Co-Planner
           </Link>
 
           {/* Sustainability Mode indicator */}

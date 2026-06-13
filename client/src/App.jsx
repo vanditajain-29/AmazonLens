@@ -9,6 +9,7 @@ import SignupPage from "./pages/SignupPage.jsx";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage.jsx";
 import ResetPasswordPage from "./pages/ResetPasswordPage.jsx";
 import SmartSearchPage from "./pages/SmartSearchPage.jsx";
+import CoPlannerPage from "./pages/CoPlannerPage.jsx";
 import AccountPage from "./pages/AccountPage.jsx";
 import SustainabilityPage from "./pages/SustainabilityPage.jsx";
 import StubPage from "./pages/StubPage.jsx";
@@ -27,6 +28,7 @@ export default function App() {
         <Route path="/forgot-password" element={<ForgotPasswordPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
         <Route path="/smart-search" element={<SmartSearchPage />} />
+        <Route path="/co-planner" element={<CoPlannerPage />} />
         <Route path="/account" element={<AccountPage />} />
         <Route path="/sustainability" element={<SustainabilityPage />} />
         <Route path="/orders" element={<StubPage />} />
