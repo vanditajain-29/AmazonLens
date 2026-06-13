@@ -80,13 +80,6 @@ export default function ProductCard({ product, greenerChoice = false }) {
           )}
         </div>
 
-        {/* Fake discount warning */}
-        {product.isFakeDiscount && (
-          <div className="mt-2 text-[10px] bg-red-50 border border-red-200 text-red-700 px-2 py-1 rounded flex items-center gap-1">
-            ⚠ TrustLens: Price inflated
-          </div>
-        )}
-
         <button
           onClick={(e) => {
             e.stopPropagation();
