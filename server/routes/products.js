@@ -377,4 +377,5 @@ router.post("/search", async (req, res) => {
   });
 });
 
+export { getAllProducts };
 export default router;
