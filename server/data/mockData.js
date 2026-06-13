@@ -965,7 +965,7 @@ export const products = [
     spikePriceMonths: [10],
     priceHistory: [17999, 9499, 8999, 8499, 8499, 8499, 8499, 8499, 8499, 8999, 8499, 8499],
     images: ["https://placehold.co/600x400?text=GreenSoul+Ergonomic+Chair"],
-    thumbnail: "https://placehold.co/150x150?text=GreenSoul+Chair",
+    thumbnail:"https://images.unsplash.com/photo-1505843490701-5be5d3b3ef0c",
     description: "Breathable mesh back structure featuring completely adjustable lumbar support pads, dynamic armrests, and dynamic tilt mechanisms.",
     features: [
       "Highly breathable industrial mesh backing",
@@ -1049,7 +1049,7 @@ export const products = [
     spikePriceMonths: [],
     priceHistory: [1999, 1499, 1299, 1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199, 1199],
     images: ["https://placehold.co/600x400?text=Philips+LED+Study+Lamp"],
-    thumbnail: "https://placehold.co/150x150?text=Philips+Lamp",
+    thumbnail:"https://images.unsplash.com/photo-1507473885765-e6ed057f782c",
     description: "Eye-comfort integrated diffusers built inside an adjustable gooseneck body featuring step-less capacitive touch brightness controls.",
     features: [
       "Integrated Philips EyeComfort blue-cut tech",
@@ -1091,7 +1091,7 @@ export const products = [
     spikePriceMonths: [],
     priceHistory: [799, 499, 399, 399, 399, 399, 399, 399, 399, 399, 399, 399],
     images: ["https://placehold.co/600x400?text=Amazon+Basics+Cable+Management"],
-    thumbnail: "https://placehold.co/150x150?text=Cable+Kit",
+    thumbnail:"https://images.unsplash.com/photo-1516116216624-53e697fedbea",
     description: "Flexible industrial neoprene cord organizers outfitted with zipper mechanics and custom DIY cut exit-holes for cable clusters.",
     features: [
       "Form-fitting durable neoprene fabrics",
@@ -1133,7 +1133,7 @@ export const products = [
     spikePriceMonths: [11],
     priceHistory: [4999, 3299, 2999, 2899, 2899, 2899, 2899, 2699, 2899, 2899, 2899, 2899],
     images: ["https://placehold.co/600x400?text=Redragon+Mechanical+Keyboard"],
-    thumbnail: "https://placehold.co/150x150?text=Redragon+Keyboard",
+    thumbnail:"https://images.unsplash.com/photo-1505843490701-5be5d3b3ef0c",
     description: "Solid aircraft-grade aluminum construct layout fitted with dustproof linear quiet mechanical switches and bright custom RGB backlight profiles.",
     features: [
       "Linear quiet Red mechanical switch elements",
@@ -1175,7 +1175,7 @@ export const products = [
     spikePriceMonths: [],
     priceHistory: [995, 749, 649, 649, 649, 649, 649, 649, 649, 649, 649, 649],
     images: ["https://placehold.co/600x400?text=Logitech+M235+Wireless+Mouse"],
-    thumbnail: "https://placehold.co/150x150?text=Logitech+Mouse",
+    thumbnail:"https://images.unsplash.com/photo-1527814050087-3793815479db",
     description: "Reliable plug-and-forget wireless tracking connection. Ergonomic contouring shapes engineered perfectly for all-day office comfort.",
     features: [
       "12-month average single AA battery life",
@@ -1217,7 +1217,7 @@ export const products = [
     spikePriceMonths: [1],
     priceHistory: [13500, 8499, 7999, 7999, 7999, 7999, 7999, 7999, 8299, 7999, 7999, 7999],
     images: ["https://placehold.co/600x400?text=LG+24-inch+IPS+Monitor"],
-    thumbnail: "https://placehold.co/150x150?text=LG+Monitor",
+    thumbnail:"https://images.unsplash.com/photo-1527443154391-507e9dc6c5cc",
     description: "Vibrant IPS borderless viewing experience featuring AMD FreeSync integration and dynamic reader modes for optimal workspace focus.",
     features: [
       "Three-sided virtually borderless display",
@@ -1899,11 +1899,11 @@ export const bundles = [
     totalPrice: 18746,
     originalTotal: 31296,
     savings: 12550,
-    products: ["p019", "p020", "p021", "p022", "p023"],
+    products: ["p019", "p020", "p017", "p022", "p023"],
     productDetails: [
       { id: "p019", name: "LG 24-inch Monitor", price: 7999 },
       { id: "p020", name: "Philips LED Study Lamp", price: 1199 },
-      { id: "p021", name: "GreenSoul Ergonomic Chair", price: 8499 },
+      { id: "p017", name: "GreenSoul Ergonomic Chair", price: 8499 },
       { id: "p022", name: "Amazon Basics Cable Kit", price: 399 },
       { id: "p023", name: "Logitech M235 Mouse", price: 649 }
     ]
