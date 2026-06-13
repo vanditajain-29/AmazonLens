@@ -5,22 +5,17 @@ import { useCoPlanner } from "../contexts/CoPlannerContext.jsx";
 import { formatPrice, getTrustColor, API } from "../utils/format.js";
 import { useSustainability } from "../contexts/SustainabilityContext.jsx";
 import { getUserSustainabilityScore, getSustainabilityData, getSustainabilityColor } from "../utils/sustainability.js";
-import { Trash2, RefreshCw, ShoppingBag, Clock, Leaf, Users, ChevronDown, ChevronUp, Eye, EyeOff, ExternalLink } from "lucide-react";
+import { Trash2, RefreshCw, ShoppingBag, Clock, Leaf } from "lucide-react";
 import axios from "axios";
 
 const TABS = ["Cart", "Soon"];
 
 export default function CartPage() {
   const { items, addToCart, removeFromCart, updateQty, total, itemCount } = useCart();
-  const { plans } = useCoPlanner();
   const navigate = useNavigate();
   const { prefs } = useSustainability();
   const [activeTab, setActiveTab] = useState("Cart");
   const [senseItems, setSenseItems] = useState([]);
-  const [showCoPlanCarts, setShowCoPlanCarts] = useState(true);
-  const [coPlanSort, setCoPlanSort] = useState("default");
-  const [coPlanData, setCoPlanData] = useState([]); // [{planId, name, items}]
-  const [expandedPlans, setExpandedPlans] = useState({});
 
   // Cart sustainability score
   const cartSustainScore = getUserSustainabilityScore(items, prefs);
@@ -42,23 +37,6 @@ export default function CartPage() {
         }]);
       });
   }, []);
-
-  // Fetch co-plan cart data
-  useEffect(() => {
-    if (plans.length === 0) { setCoPlanData([]); return; }
-    Promise.all(
-      plans.map((p) =>
-        fetch(`${API}/api/co-planner/${p.id}`)
-          .then((r) => r.json())
-          .then((d) => d.plan ? { planId: d.plan.id, name: d.plan.name, items: d.plan.items || [], budget: d.plan.budget, stats: d.plan.stats } : null)
-          .catch(() => null)
-      )
-    ).then((results) => setCoPlanData(results.filter(Boolean)));
-  }, [plans]);
-
-  const togglePlanExpand = (planId) => {
-    setExpandedPlans((prev) => ({ ...prev, [planId]: !prev[planId] }));
-  };
 
   return (
     <div className="max-w-[1500px] mx-auto px-4 py-4">
@@ -87,7 +65,6 @@ export default function CartPage() {
       </div>
 
       {activeTab === "Cart" ? (
-        <>
         <div className="flex gap-6 flex-wrap lg:flex-nowrap">
           {/* Cart items */}
           <div className="flex-1 min-w-0">
@@ -110,7 +87,10 @@ export default function CartPage() {
                 </div>
 
                 {items.map((item) => {
-                  const trust = getTrustColor(item.trustScore || 75);
+                  const score     = item.companyScore  ?? item.trustScore  ?? 70;
+                  const status    = item.companyStatus ?? (score >= 80 ? "VERIFIED" : score >= 60 ? "MIXED" : "FLAGGED");
+                  const badgeCls  = status === "VERIFIED" ? "bg-[#067D62] text-white" : status === "FLAGGED" ? "bg-[#CC0C39] text-white" : "bg-[#FF9900] text-[#0F1111]";
+                  const badgeLbl  = status === "VERIFIED" ? "Verified" : status === "FLAGGED" ? "Flagged" : "Mixed";
                   return (
                     <div key={item.id} className="px-5 py-4 border-b border-gray-100 last:border-0 flex gap-4">
                       {/* Image */}
@@ -140,11 +120,9 @@ export default function CartPage() {
                         )}
 
                         {/* TrustLens in cart */}
-                        {item.trustScore && (
-                          <div className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${trust.bg} ${trust.text} mb-2`}>
-                            🔍 TrustLens: {item.trustScore} · {trust.label}
-                          </div>
-                        )}
+                        <div className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${badgeCls} mb-2`}>
+                          🔍 TrustLens: {score} · {badgeLbl}
+                        </div>
 
                         <div className="flex items-center gap-4 flex-wrap">
                           {/* Qty selector */}
@@ -210,7 +188,7 @@ export default function CartPage() {
                   This order contains a gift
                 </label>
                 <button
-                  onClick={() => navigate("/login")}
+                  onClick={() => navigate("/checkout")}
                   className="w-full btn-primary py-2.5 rounded-full font-bold text-sm"
                 >
                   Proceed to Buy
@@ -247,127 +225,6 @@ export default function CartPage() {
             </div>
           )}
         </div>
-
-        {/* ── Co-Plan Shared Carts ── */}
-        {coPlanData.length > 0 && (
-          <div className="mt-6">
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-base font-medium text-[#0F1111] flex items-center gap-2">
-                <Users size={18} className="text-[#FF9900]" /> Co-Plan Carts
-              </h2>
-              <div className="flex items-center gap-3">
-                <select
-                  value={coPlanSort}
-                  onChange={(e) => setCoPlanSort(e.target.value)}
-                  className="text-xs px-2 py-1 rounded border border-gray-300 text-[#0F1111] bg-white"
-                >
-                  <option value="default">Default order</option>
-                  <option value="priority">Priority</option>
-                  <option value="price_high">Price: High to Low</option>
-                  <option value="price_low">Price: Low to High</option>
-                  <option value="status">Status</option>
-                </select>
-                <button
-                  onClick={() => setShowCoPlanCarts((v) => !v)}
-                  className="flex items-center gap-1.5 text-xs text-[#007185] hover:text-[#C7511F] transition-colors"
-                >
-                  {showCoPlanCarts ? <><EyeOff size={13} /> Hide</> : <><Eye size={13} /> Show</>}
-                </button>
-              </div>
-            </div>
-
-            {showCoPlanCarts && coPlanData.map((cp) => {
-              const isExpanded = expandedPlans[cp.planId] !== false; // default expanded
-              const cpTotal = cp.items.reduce((s, i) => s + (i.product?.price || 0), 0);
-              return (
-                <div key={cp.planId} className="bg-white rounded shadow-sm mb-3 overflow-hidden">
-                  {/* Plan header */}
-                  <div
-                    className="px-5 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50 border-b border-gray-100"
-                    onClick={() => togglePlanExpand(cp.planId)}
-                  >
-                    <div className="flex items-center gap-2">
-                      <Users size={14} className="text-[#FF9900]" />
-                      <span className="text-sm font-medium text-[#0F1111]">{cp.name}</span>
-                      <span className="text-xs text-[#565959]">({cp.items.length} item{cp.items.length !== 1 ? "s" : ""})</span>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <span className="text-sm font-bold text-[#0F1111]">{formatPrice(cpTotal)}</span>
-                      {isExpanded ? <ChevronUp size={16} className="text-gray-400" /> : <ChevronDown size={16} className="text-gray-400" />}
-                    </div>
-                  </div>
-
-                  {/* Items */}
-                  {isExpanded && (
-                    <div>
-                      {[...cp.items]
-                        .sort((a, b) => {
-                          if (coPlanSort === "priority") {
-                            const order = { critical: 0, important: 1, optional: 2 };
-                            return (order[a.priority] ?? 1) - (order[b.priority] ?? 1);
-                          }
-                          if (coPlanSort === "price_high") return (b.product?.price || 0) - (a.product?.price || 0);
-                          if (coPlanSort === "price_low") return (a.product?.price || 0) - (b.product?.price || 0);
-                          if (coPlanSort === "status") {
-                            const sOrder = { need_to_buy: 0, assigned: 1, purchased: 2, delivered: 3 };
-                            return (sOrder[a.status] ?? 0) - (sOrder[b.status] ?? 0);
-                          }
-                          return 0;
-                        })
-                        .map((item) => {
-                        const p = item.product;
-                        if (!p) return null;
-                        const trust = getTrustColor(p.trustScore || 75);
-                        return (
-                          <div key={item.productId} className="px-5 py-3 border-b border-gray-50 last:border-0 flex gap-3 items-center">
-                            <div className="w-14 h-14 flex-shrink-0 cursor-pointer" onClick={() => navigate(`/dp/${p.id}`)}>
-                              <img src={p.image} alt={p.name} className="w-full h-full object-contain" onError={(e) => { e.target.src = "https://via.placeholder.com/56"; }} />
-                            </div>
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm text-[#0F1111] line-clamp-1 cursor-pointer hover:text-[#C7511F]" onClick={() => navigate(`/dp/${p.id}`)}>
-                                {p.name}
-                              </p>
-                              <div className="flex items-center gap-2 mt-0.5 text-xs">
-                                <span className={`font-bold px-1.5 py-0.5 rounded-full ${trust.bg} ${trust.text}`} style={{fontSize: '10px'}}>
-                                  Trust: {p.trustScore}
-                                </span>
-                                {item.priority && item.priority !== "important" && (
-                                  <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${
-                                    item.priority === "critical" ? "bg-red-50 text-red-700" : "bg-gray-50 text-gray-500"
-                                  }`}>
-                                    {item.priority}
-                                  </span>
-                                )}
-                                {item.assignedTo && (
-                                  <span className="text-[#565959]">Assigned: {item.assignedTo}</span>
-                                )}
-                                <span className={`px-1.5 py-0.5 rounded-full text-[10px] font-medium ${
-                                  item.status === "purchased" ? "bg-green-50 text-green-700" :
-                                  item.status === "assigned" ? "bg-blue-50 text-blue-700" :
-                                  "bg-gray-100 text-gray-600"
-                                }`}>
-                                  {item.status?.replace(/_/g, " ")}
-                                </span>
-                              </div>
-                            </div>
-                            <span className="text-sm font-bold text-[#0F1111] flex-shrink-0">{formatPrice(p.price)}</span>
-                          </div>
-                        );
-                      })}
-                      {/* Link to full plan */}
-                      <div className="px-5 py-2 bg-gray-50 border-t border-gray-100">
-                        <Link to={`/co-planner?id=${cp.planId}`} className="flex items-center gap-1 text-xs text-[#007185] hover:text-[#C7511F] hover:underline">
-                          <ExternalLink size={11} /> View full plan
-                        </Link>
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-        </>
       ) : (
         /* SOON TAB */
         <div>
