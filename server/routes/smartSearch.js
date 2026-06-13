@@ -471,12 +471,6 @@ function generateWhyExplanation(bundle, budget, setupType) {
   if (bundle.savings > 0) {
     reasons.push(`Saves ₹${bundle.savings.toLocaleString('en-IN')} compared to buying separately`);
   }
-  if (bundle.completeness >= 0.75) {
-    reasons.push(`Complete ${spec?.name || 'setup'} with ${bundle.products.length} items`);
-  }
-  if (bundle.avgTrust >= 80) {
-    reasons.push('All products have high trust ratings');
-  }
   if (budget && bundle.total <= budget * 0.9) {
     reasons.push(`Leaves ₹${(budget - bundle.total).toLocaleString('en-IN')} in your budget for future upgrades`);
   }
