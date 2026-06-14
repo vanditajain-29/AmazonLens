@@ -321,11 +321,9 @@ export default function ProductPage() {
               </div>
             )}
 
-            {product.witnesses?.length > 0 && (
-              <div className="border border-gray-200 rounded-xl p-5 bg-gradient-to-br from-gray-50 to-white mb-6">
-                <WitnessPanel witnesses={product.witnesses} product={product} />
-              </div>
-            )}
+            <div className="border border-gray-200 rounded-xl p-5 bg-gradient-to-br from-gray-50 to-white mb-6">
+              <WitnessPanel product={product} />
+            </div>
 
             <div id="reviews" className="mb-6">
               <h2 className="font-bold text-[#0F1111] text-base mb-4">Customer Reviews</h2>
