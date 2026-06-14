@@ -23,7 +23,7 @@ export default function ProductCard({ product, greenerChoice = false }) {
   const navigate = useNavigate();
   const { items, addToCart, updateQty, removeFromCart } = useCart();
   const { toggle, isInWishlist } = useWishlist();
-  const { startAddToPlan, plans, activePlan } = useCoPlanner();
+  const { startAddToPlan, plans } = useCoPlanner();
   const wishlisted = isInWishlist(product.id);
   const [justAdded, setJustAdded] = useState(false);
 
@@ -45,11 +45,6 @@ export default function ProductCard({ product, greenerChoice = false }) {
 
   const handleAddToPlan = (e) => {
     e.stopPropagation();
-    // Check if item already exists in any tracked plan
-    if (activePlan && activePlan.items?.some((i) => i.productId === product.id)) {
-      alert("This item is already in your Co-Plan!");
-      return;
-    }
     startAddToPlan(product);
   };
 

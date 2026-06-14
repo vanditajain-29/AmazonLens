@@ -1,28 +1,26 @@
 import { useState } from "react";
 import { useCoPlanner } from "../contexts/CoPlannerContext.jsx";
-import { useNavigate } from "react-router-dom";
 import { X, Users, Plus, CheckCircle2, AlertTriangle, Target } from "lucide-react";
 import { formatPrice } from "../utils/format.js";
 
 export default function CoPlannerPicker() {
-  const navigate = useNavigate();
   const { showPlanPicker, pendingProduct, plans, confirmAddToPlan, cancelPlanPicker, createPlan } = useCoPlanner();
-  const [result, setResult] = useState(null); // { success, error, message }
+  const [result, setResult] = useState(null); // { success, error, message, planId }
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
 
   if (!showPlanPicker || !pendingProduct) return null;
 
   const handleSelect = async (planId) => {
+    setResult(null);
     const res = await confirmAddToPlan(planId);
     if (res?.error) {
-      // If plan was deleted/stale, just remove it from list — don't show scary error
       if (res.message?.includes("no longer exists")) {
-        // Plan was auto-removed from context. Just reset so user sees updated list.
-        setResult(null);
+        // Stale plan removed, just refresh list
         return;
       }
-      setResult({ error: true, message: res.message });
+      // Show error inline for THIS plan, keep picker open for other plans
+      setResult({ error: true, message: res.message, planId });
     } else {
       setResult({ success: true });
       setTimeout(() => { setResult(null); cancelPlanPicker(); }, 1500);
@@ -67,45 +65,55 @@ export default function CoPlannerPicker() {
           </div>
         </div>
 
-        {/* Success/Error states */}
+        {/* Success state — full takeover */}
         {result?.success && (
           <div className="px-5 py-6 text-center">
             <CheckCircle2 size={32} className="text-green-600 mx-auto mb-2" />
             <p className="text-sm font-semibold text-green-700">Added to Co-Plan!</p>
           </div>
         )}
-        {result?.error && (
-          <div className="px-5 py-4">
-            <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg">
-              <AlertTriangle size={16} className="text-amber-600 mt-0.5 flex-shrink-0" />
-              <div>
-                <p className="text-xs font-semibold text-amber-800">{result.message?.includes("duplicate") || result.message?.includes("Similar") ? "Duplicate Detected" : "Couldn't Add"}</p>
-                <p className="text-xs text-amber-700 mt-0.5">{result.message}</p>
-              </div>
-            </div>
-            <button onClick={() => setResult(null)} className="text-xs text-[#007185] hover:underline mt-2">Dismiss</button>
-          </div>
-        )}
 
-        {/* Plan list */}
-        {!result && (
+        {/* Plan list — always visible unless success */}
+        {!result?.success && (
           <div className="px-5 py-3">
+            {/* Inline error for a specific plan */}
+            {result?.error && (
+              <div className="flex items-start gap-2 p-3 bg-amber-50 border border-amber-200 rounded-lg mb-3">
+                <AlertTriangle size={16} className="text-amber-600 mt-0.5 flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="text-xs font-semibold text-amber-800">
+                    {result.message?.includes("purchased") ? "Already Purchased" : result.message?.includes("already") ? "Duplicate Detected" : "Couldn't Add"}
+                  </p>
+                  <p className="text-xs text-amber-700 mt-0.5">{result.message}</p>
+                  <p className="text-xs text-[#007185] mt-1">Try selecting a different plan below.</p>
+                </div>
+              </div>
+            )}
+
             {plans.length > 0 ? (
               <div className="space-y-2 mb-3">
                 <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Your Plans</p>
-                {plans.map((p) => (
-                  <button
-                    key={p.id}
-                    onClick={() => handleSelect(p.id)}
-                    className="w-full flex items-center justify-between p-3 rounded-lg border border-gray-200 hover:border-[#FF9900] hover:bg-amber-50 transition-all text-left"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Target size={14} className="text-[#FF9900]" />
-                      <span className="text-sm font-medium text-[#0F1111]">{p.name}</span>
-                    </div>
-                    <span className="text-xs text-gray-500">{formatPrice(p.budget)}</span>
-                  </button>
-                ))}
+                {plans.map((p) => {
+                  const hasError = result?.error && result.planId === p.id;
+                  return (
+                    <button
+                      key={p.id}
+                      onClick={() => handleSelect(p.id)}
+                      className={`w-full flex items-center justify-between p-3 rounded-lg border transition-all text-left ${
+                        hasError
+                          ? "border-red-200 bg-red-50 opacity-60"
+                          : "border-gray-200 hover:border-[#FF9900] hover:bg-amber-50"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Target size={14} className={hasError ? "text-red-400" : "text-[#FF9900]"} />
+                        <span className="text-sm font-medium text-[#0F1111]">{p.name}</span>
+                        {hasError && <span className="text-[10px] text-red-500 font-medium">✗ exists</span>}
+                      </div>
+                      <span className="text-xs text-gray-500">{formatPrice(p.budget)}</span>
+                    </button>
+                  );
+                })}
               </div>
             ) : (
               <p className="text-xs text-gray-500 mb-3">No plans yet. Create one below.</p>

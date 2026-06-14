@@ -164,8 +164,11 @@ export function CoPlannerProvider({ children }) {
   const confirmAddToPlan = useCallback(async (planId) => {
     if (!pendingProduct) return;
     const result = await addToPlan(planId, pendingProduct.id);
-    setPendingProduct(null);
-    setShowPlanPicker(false);
+    // Only close the picker on success — keep it open on error so user can pick another plan
+    if (result?.success) {
+      setPendingProduct(null);
+      setShowPlanPicker(false);
+    }
     return result;
   }, [pendingProduct, addToPlan]);
 
