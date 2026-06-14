@@ -613,7 +613,7 @@ export default function CoPlannerPage() {
   const joinToken = searchParams.get("join");
 
   const { user } = useAuth();
-  const { plans: trackedPlans, trackPlan, loadPlan, addToPlan, memberName, deletePlan } = useCoPlanner();
+  const { plans: trackedPlans, trackPlan, loadPlan, addToPlan, memberName, deletePlan, dashboardResetKey } = useCoPlanner();
   const { addToCart } = useCart();
 
   // Handle redirect back from login after join attempt
@@ -629,6 +629,14 @@ export default function CoPlannerPage() {
 
   const [plan, setPlan] = useState(null);
   const [loading, setLoading] = useState(false);
+
+  // Reset to dashboard when navbar Co-Planner is clicked
+  useEffect(() => {
+    if (dashboardResetKey > 0) {
+      setPlan(null);
+      window.history.replaceState(null, "", "/co-planner");
+    }
+  }, [dashboardResetKey]);
   const [showInvite, setShowInvite] = useState(false);
   const [recommendations, setRecommendations] = useState([]);
   const [aiSuggestions, setAiSuggestions] = useState([]);

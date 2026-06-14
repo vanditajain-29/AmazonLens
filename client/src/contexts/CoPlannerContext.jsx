@@ -10,6 +10,7 @@ export function CoPlannerProvider({ children }) {
   const [activePlan, setActivePlan] = useState(null); // currently viewed plan (full)
   const [showPlanPicker, setShowPlanPicker] = useState(false);
   const [pendingProduct, setPendingProduct] = useState(null); // product waiting to be added
+  const [dashboardResetKey, setDashboardResetKey] = useState(0);
 
   const memberName = user?.name || "You";
 
@@ -173,6 +174,12 @@ export function CoPlannerProvider({ children }) {
     setShowPlanPicker(false);
   }, []);
 
+  // Called from navbar to force CoPlannerPage back to dashboard
+  const goToDashboard = useCallback(() => {
+    setActivePlan(null);
+    setDashboardResetKey((k) => k + 1);
+  }, []);
+
   // Delete a plan from local tracking (and archive on server if still exists)
   const deletePlan = useCallback(async (planId) => {
     try {
@@ -204,6 +211,8 @@ export function CoPlannerProvider({ children }) {
       startAddToPlan,
       confirmAddToPlan,
       cancelPlanPicker,
+      goToDashboard,
+      dashboardResetKey,
       showPlanPicker,
       pendingProduct,
     }}>

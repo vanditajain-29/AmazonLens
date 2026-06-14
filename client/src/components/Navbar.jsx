@@ -19,7 +19,7 @@ export default function Navbar() {
   const [searchParams] = useSearchParams();
   const { user, realUser, logout } = useAuth();
   const { itemCount } = useCart();
-  const { plans } = useCoPlanner();
+  const { plans, goToDashboard } = useCoPlanner();
   const { wishlist } = useWishlist();
   const { prefs, toggleMode } = useSustainability();
   const [coPlanItemCount, setCoPlanItemCount] = useState(0);
@@ -38,18 +38,25 @@ export default function Navbar() {
     }
   }, [location.pathname, searchParams]);
 
-  // Count all co-plan items in user's tracked plans for badge
+  // Count co-plan items relevant to current user (assigned to them OR unassigned but added by them)
   useEffect(() => {
-    if (plans.length === 0) { setCoPlanItemCount(0); return; }
+    if (plans.length === 0 || !user?.name) { setCoPlanItemCount(0); return; }
+    const userName = user.name;
     Promise.all(
       plans.map((p) =>
         fetch(`${API}/api/co-planner/${p.id}`)
           .then((r) => r.ok ? r.json() : null)
-          .then((d) => d?.plan?.items?.length || 0)
+          .then((d) => {
+            if (!d?.plan) return 0;
+            return d.plan.items.filter((item) =>
+              item.assignedTo === userName ||
+              (!item.assignedTo && item.addedBy === userName)
+            ).length;
+          })
           .catch(() => 0)
       )
     ).then((counts) => setCoPlanItemCount(counts.reduce((s, c) => s + c, 0)));
-  }, [plans]);
+  }, [plans, user]);
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -316,7 +323,11 @@ export default function Navbar() {
           <Link to="/minitv" className="px-3 py-2 hover:bg-white/10 rounded text-sm flex-shrink-0">
             Amazon miniTV
           </Link>
-          <Link to="/co-planner" className="px-3 py-2 hover:bg-white/10 rounded text-sm text-[#FF9900] font-medium flex-shrink-0">
+          <Link
+            to="/co-planner"
+            onClick={() => goToDashboard()}
+            className="px-3 py-2 hover:bg-white/10 rounded text-sm text-[#FF9900] font-medium flex-shrink-0"
+          >
             Co-Planner
           </Link>
 

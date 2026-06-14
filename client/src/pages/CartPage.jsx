@@ -2,25 +2,32 @@ import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useCart } from "../contexts/CartContext.jsx";
 import { useCoPlanner } from "../contexts/CoPlannerContext.jsx";
+import { useAuth } from "../contexts/AuthContext.jsx";
 import { formatPrice, API } from "../utils/format.js";
 import { useSustainability } from "../contexts/SustainabilityContext.jsx";
 import { getUserSustainabilityScore, getSustainabilityData, getSustainabilityColor } from "../utils/sustainability.js";
-import { Trash2, RefreshCw, ShoppingBag, Clock, Leaf, Users, Eye, EyeOff } from "lucide-react";
+import { Trash2, RefreshCw, ShoppingBag, Clock, Leaf, Users, Eye, EyeOff, ChevronDown, ChevronRight } from "lucide-react";
 import axios from "axios";
 
 const TABS = ["Cart", "Soon"];
 
 export default function CartPage() {
-  const { items, addToCart, removeFromCart, updateQty, total, itemCount } = useCart();
+  const { items, addToCart, removeFromCart, updateQty } = useCart();
   const { plans } = useCoPlanner();
+  const { user } = useAuth();
   const navigate = useNavigate();
   const { prefs } = useSustainability();
   const [activeTab, setActiveTab] = useState("Cart");
   const [senseItems, setSenseItems] = useState([]);
-  const [showCoPlanCarts, setShowCoPlanCarts] = useState(true);
-  const [coPlanData, setCoPlanData] = useState([]);
+  const [sharedPlans, setSharedPlans] = useState([]); // [{planId, name, items (filtered), budget, memberCount}]
+  const [expandedPlans, setExpandedPlans] = useState({}); // all collapsed by default
+  const [hideShared, setHideShared] = useState(() => localStorage.getItem("al_hideSharedItems") === "true");
 
-  // Cart sustainability
+  const userName = user?.name;
+
+  useEffect(() => { localStorage.setItem("al_hideSharedItems", String(hideShared)); }, [hideShared]);
+
+  // Sustainability
   const cartSustainScore = getUserSustainabilityScore(items, prefs);
   const cartSustainColor = getSustainabilityColor(cartSustainScore);
   const ecoItemCount = items.filter((item) => getSustainabilityData(item.id).score >= 70).length;
@@ -29,130 +36,48 @@ export default function CartPage() {
     axios.get(`${API}/api/sense/predictions`)
       .then(({ data }) => setSenseItems(data.predictions || []))
       .catch(() => {
-        setSenseItems([{
-          productId: "p005", productName: "Nescafé Gold Blend 200g", price: 649, trustScore: 88, urgency: "Due today", daysOverdue: 0,
-          thumbnail: "https://upload.wikimedia.org/wikipedia/commons/7/7d/Instant_Coffee_Grains_Inside_Jar.jpeg"
-        }]);
+        setSenseItems([{ productId: "p005", productName: "Nescafé Gold Blend 200g", price: 649, trustScore: 88, urgency: "Due today", daysOverdue: 0, thumbnail: "https://upload.wikimedia.org/wikipedia/commons/7/7d/Instant_Coffee_Grains_Inside_Jar.jpeg" }]);
       });
   }, []);
 
-  // Fetch co-plan data
+  // Fetch co-plan data — filter to only MY items per plan
   useEffect(() => {
-    if (plans.length === 0) { setCoPlanData([]); return; }
+    if (plans.length === 0 || !userName) { setSharedPlans([]); return; }
     Promise.all(
       plans.map((p) =>
         fetch(`${API}/api/co-planner/${p.id}`)
           .then((r) => r.ok ? r.json() : null)
-          .then((d) => d?.plan ? { planId: d.plan.id, name: d.plan.name, items: d.plan.items || [], budget: d.plan.budget, stats: d.plan.stats, members: d.plan.members } : null)
+          .then((d) => {
+            if (!d?.plan) return null;
+            const myItems = d.plan.items.filter((item) =>
+              item.assignedTo === userName || (!item.assignedTo && item.addedBy === userName)
+            );
+            if (myItems.length === 0) return null;
+            return {
+              planId: d.plan.id,
+              name: d.plan.name,
+              items: myItems,
+              budget: d.plan.budget,
+              memberCount: d.plan.members?.length || 1,
+              stats: d.plan.stats,
+            };
+          })
           .catch(() => null)
       )
-    ).then((results) => setCoPlanData(results.filter(Boolean)));
-  }, [plans]);
+    ).then((results) => setSharedPlans(results.filter(Boolean)));
+  }, [plans, userName]);
 
-  const moveToCart = (product) => {
-    addToCart({ id: product.id, name: product.name, price: product.price, thumbnail: product.image, image: product.image, isPrime: true });
+  const togglePlan = (planId) => {
+    setExpandedPlans((prev) => ({ ...prev, [planId]: !prev[planId] }));
   };
 
-  // ── Reusable cart item row — identical for personal & shared items ──
-  const CartItemRow = ({ item, isShared, planName, assignedTo, onMove }) => {
-    const inPersonalCart = items.some((ci) => ci.id === (item.id || item.productId));
-    return (
-      <div className="px-5 py-4 border-b border-gray-100 last:border-0 flex gap-4">
-        {/* Image */}
-        <div className="w-24 h-24 flex-shrink-0 cursor-pointer" onClick={() => navigate(`/dp/${item.id}`)}>
-          <img
-            src={item.thumbnail || item.image}
-            alt={item.name}
-            className="w-full h-full object-contain"
-            onError={(e) => { e.target.src = "https://via.placeholder.com/96"; }}
-          />
-        </div>
-
-        {/* Info */}
-        <div className="flex-1 min-w-0">
-          <h3
-            className="text-sm text-[#0F1111] hover:text-[#C7511F] cursor-pointer leading-snug mb-1"
-            onClick={() => navigate(`/dp/${item.id}`)}
-          >
-            {item.name}
-          </h3>
-
-          {/* Co-Plan badge — the ONLY visual difference for shared items */}
-          {isShared && (
-            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-              <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-[#FFF8E1] border border-[#FFE082] text-[#F57C00]">
-                <Users size={9} /> Co-Plan: {planName}
-              </span>
-              {assignedTo && (
-                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
-                  Assigned: {assignedTo}
-                </span>
-              )}
-            </div>
-          )}
-
-          {item.isPrime && (
-            <div className="text-[#00A8E1] text-xs font-bold mb-1">prime</div>
-          )}
-
-          <div className="text-xs text-[#007600] mb-2">In stock</div>
-
-          <div className="flex items-center gap-4 flex-wrap">
-            {/* Qty / Move to cart */}
-            {isShared ? (
-              inPersonalCart ? (
-                <span className="text-xs text-[#007600] font-medium">✓ In your cart</span>
-              ) : (
-                <button
-                  onClick={() => onMove && onMove()}
-                  className="text-xs text-[#007185] hover:text-[#C7511F] hover:underline font-medium"
-                >
-                  Move to Personal Cart
-                </button>
-              )
-            ) : (
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => updateQty(item.id, item.qty - 1)}
-                  className="w-7 h-7 border border-gray-300 rounded flex items-center justify-center text-sm hover:bg-gray-50"
-                >
-                  −
-                </button>
-                <span className="w-8 text-center text-sm font-medium">{item.qty}</span>
-                <button
-                  onClick={() => updateQty(item.id, item.qty + 1)}
-                  className="w-7 h-7 border border-gray-300 rounded flex items-center justify-center text-sm hover:bg-gray-50"
-                >
-                  +
-                </button>
-              </div>
-            )}
-
-            {!isShared && (
-              <>
-                <span className="text-gray-300">|</span>
-                <button
-                  onClick={() => removeFromCart(item.id)}
-                  className="text-xs text-[#007185] hover:text-[#C7511F] hover:underline"
-                >
-                  Delete
-                </button>
-                <span className="text-gray-300">|</span>
-                <button className="text-xs text-[#007185] hover:text-[#C7511F] hover:underline">
-                  Save for later
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-
-        {/* Price */}
-        <div className="text-sm font-bold text-[#0F1111] flex-shrink-0">
-          {formatPrice(isShared ? item.price : item.price * item.qty)}
-        </div>
-      </div>
-    );
-  };
+  // ── Counts derived from visible data ──
+  const personalItemCount = items.length;
+  const personalTotal = items.reduce((s, i) => s + i.price * i.qty, 0);
+  const sharedItemCount = hideShared ? 0 : sharedPlans.reduce((s, p) => s + p.items.length, 0);
+  const sharedTotal = hideShared ? 0 : sharedPlans.reduce((s, p) => s + p.items.reduce((ss, i) => ss + (i.product?.price || 0), 0), 0);
+  const visibleItemCount = personalItemCount + sharedItemCount;
+  const visibleSubtotal = personalTotal + sharedTotal;
 
   return (
     <div className="max-w-[1500px] mx-auto px-4 py-4">
@@ -161,20 +86,10 @@ export default function CartPage() {
       {/* Tab nav */}
       <div className="flex border-b border-gray-200 mb-4">
         {TABS.map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`px-6 py-3 text-sm font-medium transition-colors relative ${
-              activeTab === tab
-                ? "text-[#C7511F] border-b-2 border-[#C7511F]"
-                : "text-[#007185] hover:text-[#C7511F]"
-            }`}
-          >
+          <button key={tab} onClick={() => setActiveTab(tab)} className={`px-6 py-3 text-sm font-medium transition-colors relative ${activeTab === tab ? "text-[#C7511F] border-b-2 border-[#C7511F]" : "text-[#007185] hover:text-[#C7511F]"}`}>
             {tab}
             {tab === "Soon" && senseItems.length > 0 && (
-              <span className="ml-1.5 bg-[#FF9900] text-[#131921] text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                {senseItems.length}
-              </span>
+              <span className="ml-1.5 bg-[#FF9900] text-[#131921] text-[10px] font-bold px-1.5 py-0.5 rounded-full">{senseItems.length}</span>
             )}
           </button>
         ))}
@@ -182,137 +97,147 @@ export default function CartPage() {
 
       {activeTab === "Cart" ? (
         <div className="flex gap-6 flex-wrap lg:flex-nowrap">
-          {/* All cart items */}
-          <div className="flex-1 min-w-0">
-            {/* ── Personal Cart ── */}
-            {items.length === 0 && coPlanData.length === 0 ? (
-              <div className="bg-white rounded shadow-sm p-10 text-center">
-                <ShoppingBag size={48} className="text-[#EAEDED] mx-auto mb-4" />
-                <h2 className="text-lg font-medium text-[#0F1111] mb-2">Your Amazon Cart is empty</h2>
-                <p className="text-sm text-[#565959] mb-4">Shop today's deals</p>
-                <Link to="/" className="inline-block btn-primary px-6 py-2 rounded-full font-bold">
-                  Continue Shopping
-                </Link>
+          <div className="flex-1 min-w-0 space-y-4">
+
+            {/* ═══════ MY CART SECTION ═══════ */}
+            <div className="bg-white rounded shadow-sm">
+              <div className="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
+                <span className="text-sm font-medium text-[#0F1111]">My Cart ({personalItemCount} Item{personalItemCount !== 1 ? "s" : ""})</span>
+                <span className="text-sm text-[#565959]">Price</span>
               </div>
-            ) : (
-              <>
-                {/* Personal items section */}
-                {items.length > 0 && (
-                  <div className="bg-white rounded shadow-sm mb-4">
-                    <div className="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
-                      <span className="text-sm font-medium text-[#0F1111]">
-                        My Cart ({itemCount} item{itemCount !== 1 ? "s" : ""})
-                      </span>
-                      <span className="text-sm text-[#565959]">Price</span>
-                    </div>
 
-                    {items.map((item) => (
-                      <CartItemRow key={item.id} item={item} isShared={false} />
-                    ))}
-
-                    {/* Subtotal */}
-                    <div className="px-5 py-3 text-right border-t border-gray-200">
-                      <span className="text-base text-[#0F1111]">
-                        Subtotal ({itemCount} item{itemCount !== 1 ? "s" : ""}):
-                        <span className="font-bold ml-1">{formatPrice(total)}</span>
-                      </span>
-                    </div>
-                  </div>
-                )}
-
-                {/* Shared carts — same card style */}
-                {coPlanData.length > 0 && (
-                  <>
-                    {/* Toggle for shared carts */}
-                    <div className="flex items-center justify-between mb-2 px-1">
-                      <span className="text-xs text-[#565959]">
-                        {coPlanData.length} shared plan{coPlanData.length !== 1 ? "s" : ""}
-                      </span>
-                      <button
-                        onClick={() => setShowCoPlanCarts((v) => !v)}
-                        className="flex items-center gap-1 text-xs text-[#007185] hover:text-[#C7511F] transition-colors"
-                      >
-                        {showCoPlanCarts ? <><EyeOff size={11} /> Hide shared</> : <><Eye size={11} /> Show shared</>}
-                      </button>
-                    </div>
-
-                    {showCoPlanCarts && coPlanData.map((cp) => {
-                      const cpTotal = cp.items.reduce((s, i) => s + (i.product?.price || 0), 0);
-                      return (
-                        <div key={cp.planId} className="bg-white rounded shadow-sm mb-4">
-                          {/* Section header — Amazon style */}
-                          <div className="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-medium text-[#0F1111]">
-                                Shared Cart: {cp.name} ({cp.items.length} item{cp.items.length !== 1 ? "s" : ""})
-                              </span>
-                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#FFF8E1] border border-[#FFE082] text-[#F57C00] font-medium">
-                                {cp.members?.length || 1} member{(cp.members?.length || 1) !== 1 ? "s" : ""}
-                              </span>
-                            </div>
-                            <span className="text-sm text-[#565959]">Price</span>
+              {personalItemCount === 0 ? (
+                <div className="px-5 py-8 text-center">
+                  <ShoppingBag size={36} className="text-[#EAEDED] mx-auto mb-3" />
+                  <p className="text-sm text-[#565959] mb-3">Your personal cart is empty</p>
+                  <Link to="/" className="text-xs text-[#007185] hover:underline">Continue Shopping</Link>
+                </div>
+              ) : (
+                <>
+                  {items.map((item) => (
+                    <div key={item.id} className="px-5 py-4 border-b border-gray-100 last:border-0 flex gap-4">
+                      <div className="w-24 h-24 flex-shrink-0 cursor-pointer" onClick={() => navigate(`/dp/${item.id}`)}>
+                        <img src={item.thumbnail || item.image} alt={item.name} className="w-full h-full object-contain" onError={(e) => { e.target.src = "https://via.placeholder.com/96"; }} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-sm text-[#0F1111] hover:text-[#C7511F] cursor-pointer leading-snug mb-1" onClick={() => navigate(`/dp/${item.id}`)}>{item.name}</h3>
+                        {item.isPrime && <div className="text-[#00A8E1] text-xs font-bold mb-1">prime</div>}
+                        <div className="text-xs text-[#007600] mb-2">In stock</div>
+                        <div className="flex items-center gap-4 flex-wrap">
+                          <div className="flex items-center gap-1">
+                            <button onClick={() => updateQty(item.id, item.qty - 1)} className="w-7 h-7 border border-gray-300 rounded flex items-center justify-center text-sm hover:bg-gray-50">−</button>
+                            <span className="w-8 text-center text-sm font-medium">{item.qty}</span>
+                            <button onClick={() => updateQty(item.id, item.qty + 1)} className="w-7 h-7 border border-gray-300 rounded flex items-center justify-center text-sm hover:bg-gray-50">+</button>
                           </div>
+                          <span className="text-gray-300">|</span>
+                          <button onClick={() => removeFromCart(item.id)} className="text-xs text-[#007185] hover:text-[#C7511F] hover:underline">Delete</button>
+                          <span className="text-gray-300">|</span>
+                          <button className="text-xs text-[#007185] hover:text-[#C7511F] hover:underline">Save for later</button>
+                        </div>
+                      </div>
+                      <div className="text-sm font-bold text-[#0F1111] flex-shrink-0">{formatPrice(item.price * item.qty)}</div>
+                    </div>
+                  ))}
+                  <div className="px-5 py-3 text-right border-t border-gray-200">
+                    <span className="text-sm text-[#0F1111]">Subtotal: <span className="font-bold">{formatPrice(personalTotal)}</span></span>
+                  </div>
+                </>
+              )}
+            </div>
 
-                          {/* Items — identical rows to personal cart */}
-                          {cp.items.map((cpItem) => {
-                            const p = cpItem.product;
+            {/* ═══════ SHARED CARTS SECTION ═══════ */}
+            {sharedPlans.length > 0 && (
+              <div>
+                <div className="flex items-center justify-between mb-2 px-1">
+                  <span className="text-sm font-medium text-[#0F1111]">Shared Carts</span>
+                  <button
+                    onClick={() => setHideShared((v) => !v)}
+                    className="flex items-center gap-1.5 text-xs text-[#007185] hover:text-[#C7511F] transition-colors"
+                  >
+                    {hideShared ? <><Eye size={12} /> Show Shared Carts</> : <><EyeOff size={12} /> Hide Shared Carts</>}
+                  </button>
+                </div>
+
+                {!hideShared && sharedPlans.map((sp) => {
+                  const isExpanded = expandedPlans[sp.planId] || false;
+                  const planTotal = sp.items.reduce((s, i) => s + (i.product?.price || 0), 0);
+
+                  return (
+                    <div key={sp.planId} className="bg-white rounded shadow-sm mb-3 overflow-hidden">
+                      {/* Collapsed header */}
+                      <div
+                        className="px-5 py-3 flex items-center justify-between cursor-pointer hover:bg-gray-50"
+                        onClick={() => togglePlan(sp.planId)}
+                      >
+                        <div className="flex items-center gap-2">
+                          {isExpanded ? <ChevronDown size={14} className="text-gray-500" /> : <ChevronRight size={14} className="text-gray-500" />}
+                          <Link
+                            to={`/co-planner?id=${sp.planId}`}
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-sm font-medium text-[#007185] hover:text-[#C7511F] hover:underline"
+                          >
+                            {sp.name}
+                          </Link>
+                          <span className="text-xs text-[#565959]">
+                            {sp.items.length} Item{sp.items.length !== 1 ? "s" : ""} • {sp.memberCount} Member{sp.memberCount !== 1 ? "s" : ""} • {formatPrice(planTotal)}
+                          </span>
+                        </div>
+                        <span className="text-sm font-bold text-[#0F1111]">{formatPrice(planTotal)}</span>
+                      </div>
+
+                      {/* Expanded items */}
+                      {isExpanded && (
+                        <div className="border-t border-gray-100">
+                          {sp.items.map((item) => {
+                            const p = item.product;
                             if (!p) return null;
                             return (
-                              <CartItemRow
-                                key={cpItem.productId}
-                                item={{ id: p.id, name: p.name, price: p.price, thumbnail: p.image, image: p.image, isPrime: true }}
-                                isShared={true}
-                                planName={cp.name}
-                                assignedTo={cpItem.assignedTo}
-                                onMove={() => moveToCart(p)}
-                              />
+                              <div key={item.productId} className="px-5 py-4 border-b border-gray-100 last:border-0 flex gap-4">
+                                <div className="w-24 h-24 flex-shrink-0 cursor-pointer" onClick={() => navigate(`/dp/${p.id}`)}>
+                                  <img src={p.image} alt={p.name} className="w-full h-full object-contain" onError={(e) => { e.target.src = "https://via.placeholder.com/96"; }} />
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <h3 className="text-sm text-[#0F1111] hover:text-[#C7511F] cursor-pointer leading-snug mb-1" onClick={() => navigate(`/dp/${p.id}`)}>{p.name}</h3>
+                                  <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-[#FFF8E1] border border-[#FFE082] text-[#F57C00] mb-1">
+                                    <Users size={9} /> {item.assignedTo === userName ? "Assigned to You" : "Added by You"}
+                                  </span>
+                                  <div className="text-xs text-[#007600] mb-2">In stock</div>
+                                  <div className="flex items-center gap-4 flex-wrap">
+                                    <span className="text-xs text-[#565959]">Qty: 1</span>
+                                    <span className="text-gray-300">|</span>
+                                    <Link to={`/co-planner?id=${sp.planId}`} className="text-xs text-[#007185] hover:text-[#C7511F] hover:underline">View in Co-Plan</Link>
+                                  </div>
+                                </div>
+                                <div className="text-sm font-bold text-[#0F1111] flex-shrink-0">{formatPrice(p.price)}</div>
+                              </div>
                             );
                           })}
-
-                          {/* Shared cart subtotal + link */}
-                          <div className="px-5 py-3 border-t border-gray-200 flex items-center justify-between">
-                            <Link to={`/co-planner?id=${cp.planId}`} className="text-xs text-[#007185] hover:text-[#C7511F] hover:underline">
-                              View Co-Plan →
-                            </Link>
-                            <span className="text-sm text-[#0F1111]">
-                              Subtotal: <span className="font-bold">{formatPrice(cpTotal)}</span>
-                              {cp.budget && (
-                                <span className="text-xs text-[#565959] ml-2">
-                                  / {formatPrice(cp.budget)} budget
-                                </span>
-                              )}
-                            </span>
-                          </div>
                         </div>
-                      );
-                    })}
-                  </>
-                )}
-              </>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
 
-          {/* Order summary sidebar */}
-          {(items.length > 0 || coPlanData.some((cp) => cp.items.length > 0)) && (
+          {/* ═══════ ORDER SUMMARY SIDEBAR ═══════ */}
+          {visibleItemCount > 0 && (
             <div className="w-full lg:w-72 flex-shrink-0">
               <div className="bg-white rounded shadow-sm p-5 sticky top-24">
                 <div className="text-[#007600] text-sm mb-2">✓ Your order qualifies for FREE Delivery.</div>
                 <div className="text-base text-[#0F1111] mb-4">
-                  Subtotal ({itemCount} item{itemCount !== 1 ? "s" : ""}):
-                  <span className="font-bold ml-1">{formatPrice(total)}</span>
+                  Subtotal ({visibleItemCount} item{visibleItemCount !== 1 ? "s" : ""}):
+                  <span className="font-bold ml-1">{formatPrice(visibleSubtotal)}</span>
                 </div>
                 <label className="flex items-center gap-2 text-sm text-[#0F1111] mb-4 cursor-pointer">
                   <input type="checkbox" className="accent-[#FF9900]" />
                   This order contains a gift
                 </label>
-                <button
-                  onClick={() => navigate("/checkout")}
-                  className="w-full btn-primary py-2.5 rounded-full font-bold text-sm"
-                >
+                <button onClick={() => navigate("/checkout")} className="w-full btn-primary py-2.5 rounded-full font-bold text-sm">
                   Proceed to Buy
                 </button>
 
-                {/* Sustainability */}
                 {prefs.enabled && items.length > 0 && (
                   <div className="mt-4 bg-green-50 border border-green-200 rounded-lg p-3">
                     <div className="flex items-center gap-1.5 mb-2">
@@ -321,9 +246,7 @@ export default function CartPage() {
                     </div>
                     <div className="flex items-center justify-between mb-1.5">
                       <span className="text-xs text-[#565959]">Cart Score</span>
-                      <span className="text-sm font-bold" style={{ color: cartSustainColor.hex }}>
-                        {cartSustainScore}/100
-                      </span>
+                      <span className="text-sm font-bold" style={{ color: cartSustainColor.hex }}>{cartSustainScore}/100</span>
                     </div>
                     <div className="h-1.5 bg-green-100 rounded-full overflow-hidden mb-2">
                       <div className="h-full rounded-full" style={{ width: `${cartSustainScore}%`, backgroundColor: cartSustainColor.hex }} />
@@ -339,18 +262,15 @@ export default function CartPage() {
           )}
         </div>
       ) : (
-        /* SOON TAB */
+        /* ═══════ SOON TAB ═══════ */
         <div>
           <div className="bg-gradient-to-r from-[#131921] to-[#232F3E] rounded-xl p-5 mb-4 text-white">
             <div className="flex items-center gap-2 mb-2">
               <RefreshCw size={16} className="text-[#FF9900]" />
               <h2 className="font-bold text-base">Amazon Sense™ — Coming Up</h2>
             </div>
-            <p className="text-gray-300 text-sm">
-              Based on your order history, these items may be running low. Reorder before you run out.
-            </p>
+            <p className="text-gray-300 text-sm">Based on your order history, these items may be running low.</p>
           </div>
-
           {senseItems.length === 0 ? (
             <div className="bg-white rounded shadow-sm p-10 text-center">
               <Clock size={40} className="text-[#EAEDED] mx-auto mb-3" />
@@ -365,9 +285,7 @@ export default function CartPage() {
                     <h4 className="text-sm font-medium text-[#0F1111] leading-snug">{si.productName}</h4>
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                       <span className="text-sm font-bold text-[#0F1111]">{formatPrice(si.price)}</span>
-                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${si.daysOverdue > 0 ? "bg-red-100 text-red-700" : "bg-orange-100 text-orange-700"}`}>
-                        {si.urgency}
-                      </span>
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${si.daysOverdue > 0 ? "bg-red-100 text-red-700" : "bg-orange-100 text-orange-700"}`}>{si.urgency}</span>
                     </div>
                     <p className="text-xs text-[#565959] mt-0.5">Avg. cycle: every {si.avgCycleDays} days · Last ordered {si.lastOrderDate}</p>
                   </div>
