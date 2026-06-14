@@ -465,7 +465,7 @@ function PlansDashboard({ plans, onCreated, onOpenPlan, onDeletePlan }) {
 // ─── PlanItem ─────────────────────────────────────────────────────────────────
 function PlanItem({ item, members, currentUser, onAssign, onUpdateStatus, onRemove, onComment, onVote, onMoveToCart, index, onDragStart, onDragOver, onDrop, isDragging }) {
   const p = item.product;
-  if (!p) return null;
+  if (!p || !p.name) return null; // only hide if truly no data at all
 
   const isPurchased = item.status === "purchased" || item.status === "delivered";
   const assignedMember = members.find((m) => m.name === item.assignedTo);

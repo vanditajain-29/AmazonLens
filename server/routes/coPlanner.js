@@ -230,10 +230,13 @@ function getPlanStats(plan) {
 }
 
 function enrichPlan(plan) {
-  const enrichedItems = plan.items.map((item) => ({
-    ...item,
-    product: getProduct(item.productId),
-  }));
+  const enrichedItems = plan.items.map((item) => {
+    const product = getProduct(item.productId);
+    return {
+      ...item,
+      product: product || { id: item.productId, name: item.productId, price: 0, image: null, category: "Unknown", trustScore: 0, rating: 0, reviewCount: 0 },
+    };
+  });
 
   const stats = getPlanStats(plan);
   const health = calculateHealthScore(plan);
@@ -248,13 +251,30 @@ function enrichPlan(plan) {
 
 // Async version for API responses — resolves DummyJSON/OL products too
 async function enrichPlanAsync(plan) {
-  // Ensure cache is warm
+  // Ensure cache is warm for all items
   for (const item of plan.items) {
     if (!getProduct(item.productId)) {
       await getProductAsync(item.productId);
     }
   }
-  return enrichPlan(plan);
+  // Now enrich — if product still not found, provide a stub so items never vanish
+  const enrichedItems = plan.items.map((item) => {
+    const product = getProduct(item.productId);
+    return {
+      ...item,
+      product: product || { id: item.productId, name: item.productId, price: 0, image: null, category: "Unknown", trustScore: 0, rating: 0, reviewCount: 0 },
+    };
+  });
+
+  const stats = getPlanStats(plan);
+  const health = calculateHealthScore(plan);
+
+  return {
+    ...plan,
+    items: enrichedItems,
+    stats,
+    health,
+  };
 }
 
 function addActivity(plan, action, by, meta = {}) {
@@ -411,10 +431,15 @@ router.post("/:planId/add-item", async (req, res) => {
   // Duplicate check (exact)
   if (plan.items.some((i) => i.productId === productId)) {
     const existing = plan.items.find((i) => i.productId === productId);
+    const isPurchased = existing.status === "purchased" || existing.status === "delivered";
+    const statusMsg = isPurchased
+      ? "This item has already been purchased for this Co-Plan."
+      : "This item is already in the Co-Plan cart.";
     return res.status(409).json({
       error: "duplicate",
-      message: `Already added by ${existing.addedBy}`,
-      existingItem: { ...existing, product: getProduct(existing.productId) },
+      message: `${statusMsg} (Added by ${existing.addedBy})`,
+      existingItem: { ...existing, product: getProduct(existing.productId) || product },
+      isPurchased,
     });
   }
 
@@ -424,12 +449,14 @@ router.post("/:planId/add-item", async (req, res) => {
     return p && fuzzyMatch(p.name, product.name) && p.id !== productId;
   });
   if (fuzzyDup) {
-    const dupProduct = getProduct(fuzzyDup.productId);
+    const dupProduct = getProduct(fuzzyDup.productId) || { name: fuzzyDup.productId };
+    const isPurchased = fuzzyDup.status === "purchased" || fuzzyDup.status === "delivered";
     return res.status(409).json({
       error: "similar_exists",
-      message: `Similar item "${dupProduct?.name}" already added by ${fuzzyDup.addedBy}`,
+      message: `Similar item "${dupProduct.name}" already exists${isPurchased ? " (purchased)" : ""}. Added by ${fuzzyDup.addedBy}.`,
       existingItem: { ...fuzzyDup, product: dupProduct },
       allowOverride: true,
+      isPurchased,
     });
   }
 
@@ -501,7 +528,7 @@ router.post("/:planId/assign", (req, res) => {
 });
 
 // ─── POST /api/co-planner/:planId/update-status ──────────────────────────────
-router.post("/:planId/update-status", (req, res) => {
+router.post("/:planId/update-status", async (req, res) => {
   const plan = plans.get(req.params.planId);
   if (!plan) return res.status(404).json({ error: "Plan not found" });
 
@@ -513,10 +540,10 @@ router.post("/:planId/update-status", (req, res) => {
   if (!validStatuses.includes(status)) return res.status(400).json({ error: "Invalid status" });
 
   item.status = status;
-  const product = getProduct(productId);
-  addActivity(plan, `Marked "${product?.name}" as ${status.replace(/_/g, " ")}`, memberName || "System", { productId });
+  const product = await getProductAsync(productId);
+  addActivity(plan, `Marked "${product?.name || productId}" as ${status.replace(/_/g, " ")}`, memberName || "System", { productId });
 
-  res.json({ plan: enrichPlan(plan) });
+  res.json({ plan: await enrichPlanAsync(plan) });
 });
 
 // ─── POST /api/co-planner/:planId/remove-item ────────────────────────────────
