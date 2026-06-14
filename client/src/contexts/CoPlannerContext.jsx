@@ -13,13 +13,59 @@ export function CoPlannerProvider({ children }) {
 
   const memberName = user?.name || "You";
 
-  // Load user's plans from localStorage (demo persistence)
+  // Load user's plans from localStorage + sync with server
   useEffect(() => {
+    // Load from localStorage first for instant display
     const stored = localStorage.getItem("al_coplanner_plans");
+    let localPlans = [];
     if (stored) {
-      try { setPlans(JSON.parse(stored)); } catch (_) {}
+      try { localPlans = JSON.parse(stored); } catch (_) {}
     }
-  }, []);
+
+    // Then sync with server to get any plans user joined from other devices/sessions
+    if (user?.name) {
+      fetch(`${API}/api/co-planner/my-plans?member=${encodeURIComponent(user.name)}`)
+        .then((r) => r.ok ? r.json() : { plans: [] })
+        .then(({ plans: serverPlans }) => {
+          // Merge: combine localStorage plans with server plans (deduplicate by ID)
+          const merged = new Map();
+          localPlans.forEach((p) => merged.set(p.id, p));
+          serverPlans.forEach((p) => merged.set(p.id, p));
+          const final = [...merged.values()];
+          setPlans(final);
+          localStorage.setItem("al_coplanner_plans", JSON.stringify(final));
+        })
+        .catch(() => {
+          // Fallback: just use localStorage, validate against server
+          Promise.all(
+            localPlans.map((p) =>
+              fetch(`${API}/api/co-planner/${p.id}`)
+                .then((r) => r.ok ? p : null)
+                .catch(() => null)
+            )
+          ).then((results) => {
+            const valid = results.filter(Boolean);
+            setPlans(valid);
+            localStorage.setItem("al_coplanner_plans", JSON.stringify(valid));
+          });
+        });
+    } else {
+      // Not logged in — just validate localStorage plans
+      if (localPlans.length > 0) {
+        Promise.all(
+          localPlans.map((p) =>
+            fetch(`${API}/api/co-planner/${p.id}`)
+              .then((r) => r.ok ? p : null)
+              .catch(() => null)
+          )
+        ).then((results) => {
+          const valid = results.filter(Boolean);
+          setPlans(valid);
+          localStorage.setItem("al_coplanner_plans", JSON.stringify(valid));
+        });
+      }
+    }
+  }, [user]);
 
   // Save plans to localStorage
   useEffect(() => {

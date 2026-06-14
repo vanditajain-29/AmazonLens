@@ -2,22 +2,25 @@ import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useCart } from "../contexts/CartContext.jsx";
 import { useCoPlanner } from "../contexts/CoPlannerContext.jsx";
-import { formatPrice, getTrustColor, API } from "../utils/format.js";
+import { formatPrice, API } from "../utils/format.js";
 import { useSustainability } from "../contexts/SustainabilityContext.jsx";
 import { getUserSustainabilityScore, getSustainabilityData, getSustainabilityColor } from "../utils/sustainability.js";
-import { Trash2, RefreshCw, ShoppingBag, Clock, Leaf } from "lucide-react";
+import { Trash2, RefreshCw, ShoppingBag, Clock, Leaf, Users, Eye, EyeOff } from "lucide-react";
 import axios from "axios";
 
 const TABS = ["Cart", "Soon"];
 
 export default function CartPage() {
   const { items, addToCart, removeFromCart, updateQty, total, itemCount } = useCart();
+  const { plans } = useCoPlanner();
   const navigate = useNavigate();
   const { prefs } = useSustainability();
   const [activeTab, setActiveTab] = useState("Cart");
   const [senseItems, setSenseItems] = useState([]);
+  const [showCoPlanCarts, setShowCoPlanCarts] = useState(true);
+  const [coPlanData, setCoPlanData] = useState([]);
 
-  // Cart sustainability score
+  // Cart sustainability
   const cartSustainScore = getUserSustainabilityScore(items, prefs);
   const cartSustainColor = getSustainabilityColor(cartSustainScore);
   const ecoItemCount = items.filter((item) => getSustainabilityData(item.id).score >= 70).length;
@@ -27,16 +30,129 @@ export default function CartPage() {
       .then(({ data }) => setSenseItems(data.predictions || []))
       .catch(() => {
         setSenseItems([{
-          productId: "p005",
-          productName: "Nescafé Gold Blend 200g",
-          price: 649,
-          trustScore: 88,
-          urgency: "Due today",
-          daysOverdue: 0,
+          productId: "p005", productName: "Nescafé Gold Blend 200g", price: 649, trustScore: 88, urgency: "Due today", daysOverdue: 0,
           thumbnail: "https://upload.wikimedia.org/wikipedia/commons/7/7d/Instant_Coffee_Grains_Inside_Jar.jpeg"
         }]);
       });
   }, []);
+
+  // Fetch co-plan data
+  useEffect(() => {
+    if (plans.length === 0) { setCoPlanData([]); return; }
+    Promise.all(
+      plans.map((p) =>
+        fetch(`${API}/api/co-planner/${p.id}`)
+          .then((r) => r.ok ? r.json() : null)
+          .then((d) => d?.plan ? { planId: d.plan.id, name: d.plan.name, items: d.plan.items || [], budget: d.plan.budget, stats: d.plan.stats, members: d.plan.members } : null)
+          .catch(() => null)
+      )
+    ).then((results) => setCoPlanData(results.filter(Boolean)));
+  }, [plans]);
+
+  const moveToCart = (product) => {
+    addToCart({ id: product.id, name: product.name, price: product.price, thumbnail: product.image, image: product.image, isPrime: true });
+  };
+
+  // ── Reusable cart item row — identical for personal & shared items ──
+  const CartItemRow = ({ item, isShared, planName, assignedTo, onMove }) => {
+    const inPersonalCart = items.some((ci) => ci.id === (item.id || item.productId));
+    return (
+      <div className="px-5 py-4 border-b border-gray-100 last:border-0 flex gap-4">
+        {/* Image */}
+        <div className="w-24 h-24 flex-shrink-0 cursor-pointer" onClick={() => navigate(`/dp/${item.id}`)}>
+          <img
+            src={item.thumbnail || item.image}
+            alt={item.name}
+            className="w-full h-full object-contain"
+            onError={(e) => { e.target.src = "https://via.placeholder.com/96"; }}
+          />
+        </div>
+
+        {/* Info */}
+        <div className="flex-1 min-w-0">
+          <h3
+            className="text-sm text-[#0F1111] hover:text-[#C7511F] cursor-pointer leading-snug mb-1"
+            onClick={() => navigate(`/dp/${item.id}`)}
+          >
+            {item.name}
+          </h3>
+
+          {/* Co-Plan badge — the ONLY visual difference for shared items */}
+          {isShared && (
+            <div className="flex items-center gap-2 mb-1.5 flex-wrap">
+              <span className="inline-flex items-center gap-1 text-[10px] font-medium px-2 py-0.5 rounded-full bg-[#FFF8E1] border border-[#FFE082] text-[#F57C00]">
+                <Users size={9} /> Co-Plan: {planName}
+              </span>
+              {assignedTo && (
+                <span className="text-[10px] font-medium px-2 py-0.5 rounded-full bg-blue-50 text-blue-700">
+                  Assigned: {assignedTo}
+                </span>
+              )}
+            </div>
+          )}
+
+          {item.isPrime && (
+            <div className="text-[#00A8E1] text-xs font-bold mb-1">prime</div>
+          )}
+
+          <div className="text-xs text-[#007600] mb-2">In stock</div>
+
+          <div className="flex items-center gap-4 flex-wrap">
+            {/* Qty / Move to cart */}
+            {isShared ? (
+              inPersonalCart ? (
+                <span className="text-xs text-[#007600] font-medium">✓ In your cart</span>
+              ) : (
+                <button
+                  onClick={() => onMove && onMove()}
+                  className="text-xs text-[#007185] hover:text-[#C7511F] hover:underline font-medium"
+                >
+                  Move to Personal Cart
+                </button>
+              )
+            ) : (
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => updateQty(item.id, item.qty - 1)}
+                  className="w-7 h-7 border border-gray-300 rounded flex items-center justify-center text-sm hover:bg-gray-50"
+                >
+                  −
+                </button>
+                <span className="w-8 text-center text-sm font-medium">{item.qty}</span>
+                <button
+                  onClick={() => updateQty(item.id, item.qty + 1)}
+                  className="w-7 h-7 border border-gray-300 rounded flex items-center justify-center text-sm hover:bg-gray-50"
+                >
+                  +
+                </button>
+              </div>
+            )}
+
+            {!isShared && (
+              <>
+                <span className="text-gray-300">|</span>
+                <button
+                  onClick={() => removeFromCart(item.id)}
+                  className="text-xs text-[#007185] hover:text-[#C7511F] hover:underline"
+                >
+                  Delete
+                </button>
+                <span className="text-gray-300">|</span>
+                <button className="text-xs text-[#007185] hover:text-[#C7511F] hover:underline">
+                  Save for later
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Price */}
+        <div className="text-sm font-bold text-[#0F1111] flex-shrink-0">
+          {formatPrice(isShared ? item.price : item.price * item.qty)}
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="max-w-[1500px] mx-auto px-4 py-4">
@@ -66,9 +182,10 @@ export default function CartPage() {
 
       {activeTab === "Cart" ? (
         <div className="flex gap-6 flex-wrap lg:flex-nowrap">
-          {/* Cart items */}
+          {/* All cart items */}
           <div className="flex-1 min-w-0">
-            {items.length === 0 ? (
+            {/* ── Personal Cart ── */}
+            {items.length === 0 && coPlanData.length === 0 ? (
               <div className="bg-white rounded shadow-sm p-10 text-center">
                 <ShoppingBag size={48} className="text-[#EAEDED] mx-auto mb-4" />
                 <h2 className="text-lg font-medium text-[#0F1111] mb-2">Your Amazon Cart is empty</h2>
@@ -78,104 +195,105 @@ export default function CartPage() {
                 </Link>
               </div>
             ) : (
-              <div className="bg-white rounded shadow-sm">
-                <div className="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
-                  <span className="text-sm text-[#0F1111]">
-                    {itemCount} item{itemCount !== 1 ? "s" : ""} in cart
-                  </span>
-                  <span className="text-sm text-[#565959]">Price</span>
-                </div>
+              <>
+                {/* Personal items section */}
+                {items.length > 0 && (
+                  <div className="bg-white rounded shadow-sm mb-4">
+                    <div className="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
+                      <span className="text-sm font-medium text-[#0F1111]">
+                        My Cart ({itemCount} item{itemCount !== 1 ? "s" : ""})
+                      </span>
+                      <span className="text-sm text-[#565959]">Price</span>
+                    </div>
 
-                {items.map((item) => {
-                  const score     = item.productScore  ?? item.trustScore  ?? 70;
-                  const status    = item.productStatus ?? (score >= 75 ? "VERIFIED" : "TRUSTED");
-                  const badgeCls  = status === "VERIFIED" ? "bg-[#067D62] text-white" : status === "FLAGGED" ? "bg-[#CC0C39] text-white" : "bg-[#FF9900] text-[#0F1111]";
-                  const badgeLbl  = status === "VERIFIED" ? "Verified" : status === "FLAGGED" ? "Flagged" : "Mixed";
-                  return (
-                    <div key={item.id} className="px-5 py-4 border-b border-gray-100 last:border-0 flex gap-4">
-                      {/* Image */}
-                      <div
-                        className="w-24 h-24 flex-shrink-0 cursor-pointer"
-                        onClick={() => navigate(`/dp/${item.id}`)}
+                    {items.map((item) => (
+                      <CartItemRow key={item.id} item={item} isShared={false} />
+                    ))}
+
+                    {/* Subtotal */}
+                    <div className="px-5 py-3 text-right border-t border-gray-200">
+                      <span className="text-base text-[#0F1111]">
+                        Subtotal ({itemCount} item{itemCount !== 1 ? "s" : ""}):
+                        <span className="font-bold ml-1">{formatPrice(total)}</span>
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {/* Shared carts — same card style */}
+                {coPlanData.length > 0 && (
+                  <>
+                    {/* Toggle for shared carts */}
+                    <div className="flex items-center justify-between mb-2 px-1">
+                      <span className="text-xs text-[#565959]">
+                        {coPlanData.length} shared plan{coPlanData.length !== 1 ? "s" : ""}
+                      </span>
+                      <button
+                        onClick={() => setShowCoPlanCarts((v) => !v)}
+                        className="flex items-center gap-1 text-xs text-[#007185] hover:text-[#C7511F] transition-colors"
                       >
-                        <img
-                          src={item.thumbnail}
-                          alt={item.name}
-                          className="w-full h-full object-contain"
-                          onError={(e) => { e.target.src = "https://via.placeholder.com/96"; }}
-                        />
-                      </div>
+                        {showCoPlanCarts ? <><EyeOff size={11} /> Hide shared</> : <><Eye size={11} /> Show shared</>}
+                      </button>
+                    </div>
 
-                      {/* Info */}
-                      <div className="flex-1 min-w-0">
-                        <h3
-                          className="text-sm text-[#0F1111] hover:text-[#C7511F] cursor-pointer leading-snug mb-1"
-                          onClick={() => navigate(`/dp/${item.id}`)}
-                        >
-                          {item.name}
-                        </h3>
-
-                        {item.isPrime && (
-                          <div className="text-[#00A8E1] text-xs font-bold mb-1">prime</div>
-                        )}
-
-                        {/* TrustLens in cart */}
-                        <div className={`inline-flex items-center gap-1 text-[10px] font-bold px-2 py-0.5 rounded-full ${badgeCls} mb-2`}>
-                          🔍 TrustLens: {score} · {badgeLbl}
-                        </div>
-
-                        <div className="flex items-center gap-4 flex-wrap">
-                          {/* Qty selector */}
-                          <div className="flex items-center gap-1">
-                            <button
-                              onClick={() => updateQty(item.id, item.qty - 1)}
-                              className="w-7 h-7 border border-gray-300 rounded flex items-center justify-center text-sm hover:bg-gray-50"
-                            >
-                              −
-                            </button>
-                            <span className="w-8 text-center text-sm font-medium">{item.qty}</span>
-                            <button
-                              onClick={() => updateQty(item.id, item.qty + 1)}
-                              className="w-7 h-7 border border-gray-300 rounded flex items-center justify-center text-sm hover:bg-gray-50"
-                            >
-                              +
-                            </button>
+                    {showCoPlanCarts && coPlanData.map((cp) => {
+                      const cpTotal = cp.items.reduce((s, i) => s + (i.product?.price || 0), 0);
+                      return (
+                        <div key={cp.planId} className="bg-white rounded shadow-sm mb-4">
+                          {/* Section header — Amazon style */}
+                          <div className="px-5 py-3 border-b border-gray-200 flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm font-medium text-[#0F1111]">
+                                Shared Cart: {cp.name} ({cp.items.length} item{cp.items.length !== 1 ? "s" : ""})
+                              </span>
+                              <span className="text-[10px] px-2 py-0.5 rounded-full bg-[#FFF8E1] border border-[#FFE082] text-[#F57C00] font-medium">
+                                {cp.members?.length || 1} member{(cp.members?.length || 1) !== 1 ? "s" : ""}
+                              </span>
+                            </div>
+                            <span className="text-sm text-[#565959]">Price</span>
                           </div>
 
-                          <button
-                            onClick={() => removeFromCart(item.id)}
-                            className="flex items-center gap-1 text-xs text-[#007185] hover:text-[#C7511F] hover:underline"
-                          >
-                            <Trash2 size={12} />
-                            Delete
-                          </button>
-                          <button className="text-xs text-[#007185] hover:text-[#C7511F] hover:underline">
-                            Save for later
-                          </button>
+                          {/* Items — identical rows to personal cart */}
+                          {cp.items.map((cpItem) => {
+                            const p = cpItem.product;
+                            if (!p) return null;
+                            return (
+                              <CartItemRow
+                                key={cpItem.productId}
+                                item={{ id: p.id, name: p.name, price: p.price, thumbnail: p.image, image: p.image, isPrime: true }}
+                                isShared={true}
+                                planName={cp.name}
+                                assignedTo={cpItem.assignedTo}
+                                onMove={() => moveToCart(p)}
+                              />
+                            );
+                          })}
+
+                          {/* Shared cart subtotal + link */}
+                          <div className="px-5 py-3 border-t border-gray-200 flex items-center justify-between">
+                            <Link to={`/co-planner?id=${cp.planId}`} className="text-xs text-[#007185] hover:text-[#C7511F] hover:underline">
+                              View Co-Plan →
+                            </Link>
+                            <span className="text-sm text-[#0F1111]">
+                              Subtotal: <span className="font-bold">{formatPrice(cpTotal)}</span>
+                              {cp.budget && (
+                                <span className="text-xs text-[#565959] ml-2">
+                                  / {formatPrice(cp.budget)} budget
+                                </span>
+                              )}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-
-                      {/* Price */}
-                      <div className="text-sm font-bold text-[#0F1111] flex-shrink-0">
-                        {formatPrice(item.price * item.qty)}
-                      </div>
-                    </div>
-                  );
-                })}
-
-                {/* Subtotal */}
-                <div className="px-5 py-3 text-right border-t border-gray-200">
-                  <span className="text-base text-[#0F1111]">
-                    Subtotal ({itemCount} item{itemCount !== 1 ? "s" : ""}):
-                    <span className="font-bold ml-1">{formatPrice(total)}</span>
-                  </span>
-                </div>
-              </div>
+                      );
+                    })}
+                  </>
+                )}
+              </>
             )}
           </div>
 
-          {/* Order summary */}
-          {items.length > 0 && (
+          {/* Order summary sidebar */}
+          {(items.length > 0 || coPlanData.some((cp) => cp.items.length > 0)) && (
             <div className="w-full lg:w-72 flex-shrink-0">
               <div className="bg-white rounded shadow-sm p-5 sticky top-24">
                 <div className="text-[#007600] text-sm mb-2">✓ Your order qualifies for FREE Delivery.</div>
@@ -194,7 +312,7 @@ export default function CartPage() {
                   Proceed to Buy
                 </button>
 
-                {/* Cart Sustainability Summary (shown when mode is on) */}
+                {/* Sustainability */}
                 {prefs.enabled && items.length > 0 && (
                   <div className="mt-4 bg-green-50 border border-green-200 rounded-lg p-3">
                     <div className="flex items-center gap-1.5 mb-2">
@@ -208,16 +326,11 @@ export default function CartPage() {
                       </span>
                     </div>
                     <div className="h-1.5 bg-green-100 rounded-full overflow-hidden mb-2">
-                      <div
-                        className="h-full rounded-full"
-                        style={{ width: `${cartSustainScore}%`, backgroundColor: cartSustainColor.hex }}
-                      />
+                      <div className="h-full rounded-full" style={{ width: `${cartSustainScore}%`, backgroundColor: cartSustainColor.hex }} />
                     </div>
                     <div className="flex items-center justify-between text-[11px] text-[#565959]">
                       <span>🌱 Eco-friendly items: {ecoItemCount}</span>
-                      <Link to="/sustainability" className="text-[#007185] hover:underline">
-                        Details →
-                      </Link>
+                      <Link to="/sustainability" className="text-[#007185] hover:underline">Details →</Link>
                     </div>
                   </div>
                 )}
@@ -247,34 +360,19 @@ export default function CartPage() {
             <div className="bg-white rounded shadow-sm divide-y divide-gray-100">
               {senseItems.map((si) => (
                 <div key={si.productId} className="px-5 py-4 flex items-center gap-4">
-                  <img
-                    src={si.thumbnail}
-                    alt={si.productName}
-                    className="w-16 h-16 object-contain flex-shrink-0"
-                    onError={(e) => { e.target.src = "https://via.placeholder.com/64"; }}
-                  />
+                  <img src={si.thumbnail} alt={si.productName} className="w-16 h-16 object-contain flex-shrink-0" onError={(e) => { e.target.src = "https://via.placeholder.com/64"; }} />
                   <div className="flex-1 min-w-0">
                     <h4 className="text-sm font-medium text-[#0F1111] leading-snug">{si.productName}</h4>
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
                       <span className="text-sm font-bold text-[#0F1111]">{formatPrice(si.price)}</span>
-                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                        si.daysOverdue > 0
-                          ? "bg-red-100 text-red-700"
-                          : "bg-orange-100 text-orange-700"
-                      }`}>
+                      <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${si.daysOverdue > 0 ? "bg-red-100 text-red-700" : "bg-orange-100 text-orange-700"}`}>
                         {si.urgency}
                       </span>
                     </div>
-                    <p className="text-xs text-[#565959] mt-0.5">
-                      Avg. cycle: every {si.avgCycleDays} days · Last ordered {si.lastOrderDate}
-                    </p>
+                    <p className="text-xs text-[#565959] mt-0.5">Avg. cycle: every {si.avgCycleDays} days · Last ordered {si.lastOrderDate}</p>
                   </div>
                   <button
-                    onClick={() => {
-                      const product = { id: si.productId, name: si.productName, price: si.price, trustScore: si.trustScore, thumbnail: si.thumbnail, isPrime: true };
-                      addToCart(product);
-                      setActiveTab("Cart");
-                    }}
+                    onClick={() => { addToCart({ id: si.productId, name: si.productName, price: si.price, trustScore: si.trustScore, thumbnail: si.thumbnail, isPrime: true }); setActiveTab("Cart"); }}
                     className="flex-shrink-0 bg-[#FFD814] hover:bg-[#F7CA00] text-[#0F1111] text-xs font-bold px-4 py-2 rounded-full"
                   >
                     Reorder

@@ -10,6 +10,7 @@ import {
   GripVertical
 } from "lucide-react";
 import { useCoPlanner } from "../contexts/CoPlannerContext.jsx";
+import { useCart } from "../contexts/CartContext.jsx";
 import { useAuth } from "../contexts/AuthContext.jsx";
 import { API, formatPrice } from "../utils/format.js";
 
@@ -462,7 +463,7 @@ function PlansDashboard({ plans, onCreated, onOpenPlan, onDeletePlan }) {
 }
 
 // ─── PlanItem ─────────────────────────────────────────────────────────────────
-function PlanItem({ item, members, currentUser, onAssign, onUpdateStatus, onRemove, onComment, onVote, index, onDragStart, onDragOver, onDrop, isDragging }) {
+function PlanItem({ item, members, currentUser, onAssign, onUpdateStatus, onRemove, onComment, onVote, onMoveToCart, index, onDragStart, onDragOver, onDrop, isDragging }) {
   const p = item.product;
   if (!p) return null;
 
@@ -524,7 +525,7 @@ function PlanItem({ item, members, currentUser, onAssign, onUpdateStatus, onRemo
           <span className={`text-sm font-bold ${isPurchased ? "text-gray-400" : "text-[#0F1111]"}`}>{fmt(p.price)}</span>
           {item.assignedTo && (
             <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-100" style={{ color: assignedMember?.color || "#565959" }}>
-              {item.assignedTo}
+              {item.assignedTo === currentUser ? "You" : item.assignedTo}
             </span>
           )}
           {!item.assignedTo && (
@@ -555,6 +556,13 @@ function PlanItem({ item, members, currentUser, onAssign, onUpdateStatus, onRemo
         title="Vote down"
       >
         <ThumbsDown size={12} /> {item.downvotes > 0 && <span className="font-bold">{item.downvotes}</span>}
+      </button>
+      <button
+        onClick={() => onMoveToCart(p)}
+        className="text-[10px] text-[#007185] hover:text-[#C7511F] hover:underline flex-shrink-0 px-1.5"
+        title="Move to Cart"
+      >
+        🛒
       </button>
       <button
         onClick={() => onRemove(item.productId)}
@@ -606,6 +614,18 @@ export default function CoPlannerPage() {
 
   const { user } = useAuth();
   const { plans: trackedPlans, trackPlan, loadPlan, addToPlan, memberName, deletePlan } = useCoPlanner();
+  const { addToCart } = useCart();
+
+  // Handle redirect back from login after join attempt
+  useEffect(() => {
+    const redirect = localStorage.getItem("al_coplan_join_redirect");
+    if (redirect && user?.name) {
+      localStorage.removeItem("al_coplan_join_redirect");
+      if (redirect !== window.location.href) {
+        window.location.href = redirect;
+      }
+    }
+  }, [user]);
 
   const [plan, setPlan] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -639,14 +659,21 @@ export default function CoPlannerPage() {
   // Join via token — use authenticated user name
   useEffect(() => {
     if (joinToken) {
+      // Must be logged in to join a co-plan
+      if (!user?.name) {
+        // Save join URL and redirect to login
+        localStorage.setItem("al_coplan_join_redirect", window.location.href);
+        window.location.href = "/login";
+        return;
+      }
       setLoading(true);
       fetch(`${API}/api/co-planner/join/${joinToken}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ memberName: user?.name || "Guest" }),
+        body: JSON.stringify({ memberName: user.name }),
       })
-        .then((r) => r.json())
-        .then((d) => {
+        .then(async (r) => {
+          const d = await r.json();
           if (d.plan) {
             setPlan(d.plan);
             trackPlan(d.plan);
@@ -657,12 +684,13 @@ export default function CoPlannerPage() {
             window.history.replaceState(null, "", `/co-planner`);
           }
         })
-        .catch(() => {
+        .catch((err) => {
+          console.error("Join error:", err);
           window.history.replaceState(null, "", `/co-planner`);
         })
         .finally(() => setLoading(false));
     }
-  }, [joinToken]);
+  }, [joinToken, user]);
 
   const handleCreated = (newPlan) => {
     setPlan(newPlan);
@@ -754,6 +782,10 @@ export default function CoPlannerPage() {
 
   // ── Drag and drop handlers ──
   const PRIORITY_ORDER = ["critical", "important", "optional"];
+
+  const moveItemToCart = (product) => {
+    addToCart({ id: product.id, name: product.name, price: product.price, thumbnail: product.image, image: product.image, isPrime: true });
+  };
 
   const handleDragStart = (e, index) => {
     setDragIndex(index);
@@ -866,7 +898,7 @@ export default function CoPlannerPage() {
                 style={{ backgroundColor: m.color }}
               >
                 {m.role === "owner" && <Crown size={10} />}
-                {m.name}
+                {m.name === currentUser ? "You" : m.name}
               </span>
             ))}
           </div>
@@ -955,6 +987,7 @@ export default function CoPlannerPage() {
                   onUpdateStatus={updateStatus}
                   onRemove={removeItem}
                   onVote={voteItem}
+                  onMoveToCart={moveItemToCart}
                   onDragStart={handleDragStart}
                   onDragOver={handleDragOver}
                   onDrop={handleDrop}

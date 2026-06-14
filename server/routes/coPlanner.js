@@ -16,6 +16,7 @@
 
 import { Router } from "express";
 import { products } from "../data/mockData.js";
+import { getAllProducts } from "./products.js";
 import crypto from "crypto";
 import Groq from "groq-sdk";
 import fs from "fs";
@@ -81,8 +82,14 @@ function now() {
 }
 
 function getProduct(id) {
+  // Sync lookup from local mockData (for enrichPlan which is called frequently)
   const p = products.find((pr) => pr.id === id);
-  if (!p) return null;
+  if (!p) {
+    // Check the async cache (populated after first getAllProducts call)
+    const cached = productCache.get(id);
+    if (cached) return cached;
+    return null;
+  }
   return {
     id: p.id,
     name: p.name,
@@ -95,6 +102,60 @@ function getProduct(id) {
     reviewCount: p.reviewCount,
   };
 }
+
+// Cache for non-local products (DummyJSON, Open Library)
+const productCache = new Map();
+
+// Async version that checks ALL products (including DummyJSON and Open Library)
+async function getProductAsync(id) {
+  // Try local first
+  const local = getProduct(id);
+  if (local) return local;
+
+  // Try full catalogue and cache results
+  try {
+    const allProducts = await getAllProducts();
+    // Cache all for future sync lookups
+    for (const p of allProducts) {
+      if (!productCache.has(p.id)) {
+        productCache.set(p.id, {
+          id: p.id,
+          name: p.name,
+          price: p.price,
+          originalPrice: p.originalPrice,
+          image: p.images?.[0] || p.thumbnail,
+          category: p.category,
+          trustScore: p.trustScore || p.productScore,
+          rating: p.rating,
+          reviewCount: p.reviewCount,
+        });
+      }
+    }
+    return productCache.get(id) || null;
+  } catch (_) {
+    return null;
+  }
+}
+
+// Pre-warm the cache at startup
+getAllProducts().then((allP) => {
+  for (const p of allP) {
+    if (!products.find((lp) => lp.id === p.id)) {
+      productCache.set(p.id, {
+        id: p.id,
+        name: p.name,
+        price: p.price,
+        originalPrice: p.originalPrice,
+        image: p.images?.[0] || p.thumbnail,
+        category: p.category,
+        trustScore: p.trustScore || p.productScore,
+        rating: p.rating,
+        reviewCount: p.reviewCount,
+      });
+    }
+  }
+  console.log(`Co-Planner: cached ${productCache.size} external products`);
+}).catch(() => {});
 
 function fuzzyMatch(a, b) {
   const normalize = (s) => s.toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -185,6 +246,17 @@ function enrichPlan(plan) {
   };
 }
 
+// Async version for API responses — resolves DummyJSON/OL products too
+async function enrichPlanAsync(plan) {
+  // Ensure cache is warm
+  for (const item of plan.items) {
+    if (!getProduct(item.productId)) {
+      await getProductAsync(item.productId);
+    }
+  }
+  return enrichPlan(plan);
+}
+
 function addActivity(plan, action, by, meta = {}) {
   plan.activity.unshift({ id: generateId(), action, by, at: now(), ...meta });
   if (plan.activity.length > 100) plan.activity.length = 100;
@@ -205,6 +277,22 @@ const FORGOTTEN_ITEMS = {
   kitchen: ["p005"],
   bedroom: ["p007"],
 };
+
+// ─── GET /api/co-planner/my-plans?member=NAME ────────────────────────────────
+// Returns all plans where the given member name is a member
+router.get("/my-plans", (req, res) => {
+  const { member } = req.query;
+  if (!member) return res.json({ plans: [] });
+
+  const userPlans = [];
+  for (const [id, plan] of plans) {
+    if (plan.status === "archived") continue;
+    if (plan.members.some((m) => m.name === member)) {
+      userPlans.push({ id: plan.id, name: plan.name, budget: plan.budget });
+    }
+  }
+  res.json({ plans: userPlans });
+});
 
 // ─── POST /api/co-planner/create ─────────────────────────────────────────────
 router.post("/create", (req, res) => {
@@ -234,10 +322,10 @@ router.post("/create", (req, res) => {
 });
 
 // ─── GET /api/co-planner/:planId ─────────────────────────────────────────────
-router.get("/:planId", (req, res) => {
+router.get("/:planId", async (req, res) => {
   const plan = plans.get(req.params.planId);
   if (!plan) return res.status(404).json({ error: "Plan not found" });
-  res.json({ plan: enrichPlan(plan) });
+  res.json({ plan: await enrichPlanAsync(plan) });
 });
 
 // ─── POST /api/co-planner/:planId/invite ─────────────────────────────────────
@@ -312,12 +400,12 @@ router.post("/:planId/revoke-invite", (req, res) => {
 });
 
 // ─── POST /api/co-planner/:planId/add-item ───────────────────────────────────
-router.post("/:planId/add-item", (req, res) => {
+router.post("/:planId/add-item", async (req, res) => {
   const plan = plans.get(req.params.planId);
   if (!plan) return res.status(404).json({ error: "Plan not found" });
 
   const { productId, memberName, priority, neededBy } = req.body;
-  const product = getProduct(productId);
+  const product = await getProductAsync(productId);
   if (!product) return res.status(404).json({ error: "Product not found" });
 
   // Duplicate check (exact)
@@ -364,12 +452,12 @@ router.post("/:planId/add-item", (req, res) => {
 
 // ─── POST /api/co-planner/:planId/add-item-force ─────────────────────────────
 // Bypasses fuzzy duplicate check
-router.post("/:planId/add-item-force", (req, res) => {
+router.post("/:planId/add-item-force", async (req, res) => {
   const plan = plans.get(req.params.planId);
   if (!plan) return res.status(404).json({ error: "Plan not found" });
 
   const { productId, memberName, priority, neededBy } = req.body;
-  const product = getProduct(productId);
+  const product = await getProductAsync(productId);
   if (!product) return res.status(404).json({ error: "Product not found" });
 
   if (plan.items.some((i) => i.productId === productId)) {

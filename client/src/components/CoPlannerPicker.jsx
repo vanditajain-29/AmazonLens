@@ -16,6 +16,12 @@ export default function CoPlannerPicker() {
   const handleSelect = async (planId) => {
     const res = await confirmAddToPlan(planId);
     if (res?.error) {
+      // If plan was deleted/stale, just remove it from list — don't show scary error
+      if (res.message?.includes("no longer exists")) {
+        // Plan was auto-removed from context. Just reset so user sees updated list.
+        setResult(null);
+        return;
+      }
       setResult({ error: true, message: res.message });
     } else {
       setResult({ success: true });

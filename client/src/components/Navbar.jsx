@@ -3,8 +3,10 @@ import { useNavigate, useLocation, useSearchParams, Link } from "react-router-do
 import { ShoppingCart, Search, MapPin, ChevronDown, Menu, Sparkles, Leaf, Heart } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext.jsx";
 import { useCart } from "../contexts/CartContext.jsx";
+import { useCoPlanner } from "../contexts/CoPlannerContext.jsx";
 import { useWishlist } from "../contexts/WishlistContext.jsx";
 import { useSustainability } from "../contexts/SustainabilityContext.jsx";
+import { API } from "../utils/format.js";
 
 const CATEGORIES = [
   "All", "Electronics", "Mobiles", "Fashion", "Home & Kitchen",
@@ -17,8 +19,10 @@ export default function Navbar() {
   const [searchParams] = useSearchParams();
   const { user, realUser, logout } = useAuth();
   const { itemCount } = useCart();
+  const { plans } = useCoPlanner();
   const { wishlist } = useWishlist();
   const { prefs, toggleMode } = useSustainability();
+  const [coPlanItemCount, setCoPlanItemCount] = useState(0);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
   const [showAccount, setShowAccount] = useState(false);
@@ -33,6 +37,19 @@ export default function Navbar() {
       setSmartMode(true);
     }
   }, [location.pathname, searchParams]);
+
+  // Count all co-plan items in user's tracked plans for badge
+  useEffect(() => {
+    if (plans.length === 0) { setCoPlanItemCount(0); return; }
+    Promise.all(
+      plans.map((p) =>
+        fetch(`${API}/api/co-planner/${p.id}`)
+          .then((r) => r.ok ? r.json() : null)
+          .then((d) => d?.plan?.items?.length || 0)
+          .catch(() => 0)
+      )
+    ).then((counts) => setCoPlanItemCount(counts.reduce((s, c) => s + c, 0)));
+  }, [plans]);
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -91,7 +108,7 @@ export default function Navbar() {
               }`}
             >
               <Sparkles size={13} className={smartMode ? "text-white" : "text-[#FF9900]"} />
-              <span className="hidden sm:inline">{smartMode ? "✨ Smart" : "AI"}</span>
+              <span className="hidden sm:inline">{smartMode ? "Smart" : "AI"}</span>
             </button>
 
             {/* Category selector (hidden in smart mode) */}
@@ -249,9 +266,9 @@ export default function Navbar() {
           >
             <div className="relative">
               <ShoppingCart size={32} className="text-white" />
-              {itemCount > 0 && (
+              {(itemCount + coPlanItemCount) > 0 && (
                 <span className="absolute -top-1 -right-1 bg-[#FF9900] text-[#131921] text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center leading-none">
-                  {itemCount > 9 ? "9+" : itemCount}
+                  {(itemCount + coPlanItemCount) > 9 ? "9+" : (itemCount + coPlanItemCount)}
                 </span>
               )}
             </div>
